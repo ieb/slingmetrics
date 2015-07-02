@@ -143,11 +143,11 @@ public class DropwizardMetricsConfig {
     }
 
     public boolean addCount(String className, String name) {
-        return "count".equals(config.get(className + "." + name));
+        return "counter".equals(config.get(className + "." + name));
     }
 
     public boolean addMark(String className, String name) {
-        return "mark".equals(config.get(className + "." + name));
+        return "meter".equals(config.get(className + "." + name));
     }
 
     
