@@ -61,6 +61,10 @@
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
+                        <Export-Package>
+                          org.apache.sling.metrics.api,
+                          com.codahale.metrics.*
+                        </Export-Package>
                         <Bundle-Activator>org.apache.sling.metrics.impl.MetricsActivator</Bundle-Activator>
                         <Import-Package>
                         sun.misc.*;resolution:=optional,*

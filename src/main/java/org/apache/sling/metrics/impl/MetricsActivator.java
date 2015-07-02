@@ -32,10 +32,13 @@ import org.osgi.framework.hooks.weaving.WeavingHook;
 import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.ServiceTracker;
 
+import com.codahale.metrics.MetricRegistry;
+
 public class MetricsActivator implements BundleActivator {
 
     private ServiceRegistration<?> weavingHookService;
     private ServiceRegistration<?> metricsFactoryService;
+    private ServiceRegistration<?> metricsRegistryService;
     private DropwizardMetricsConfig metricsConfig;
     private List<LogService> logServices = new CopyOnWriteArrayList<LogService>();
     private LogServiceTracker logServiceTracker;
@@ -49,12 +52,15 @@ public class MetricsActivator implements BundleActivator {
         WeavingHook weavingHook = new MetricsWeavingHook(context, this);
         weavingHookService = context.registerService(WeavingHook.class.getName(), weavingHook, null);
         metricsFactoryService = context.registerService(MetricsFactory.class.getName(), metricsConfig.getMetricsFactory(), null);
+        // this allows other bundles to implement reporters.
+        metricsRegistryService = context.registerService(MetricRegistry.class.getName(), metricsConfig.getRegistry(), null);
     }
 
     @Override
     public synchronized void stop(BundleContext context) throws Exception {
         weavingHookService.unregister();
         metricsFactoryService.unregister();
+        metricsRegistryService.unregister();
         metricsConfig.close();
         logServiceTracker.close();
     }

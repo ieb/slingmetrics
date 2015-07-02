@@ -104,6 +104,12 @@ public class DropwizardMetricsConfig {
         return metricsFactory;
     }
     
+    @Nonnull
+    public MetricRegistry getRegistry() {
+        return metricsRegistry;
+    }
+
+    
     private void load(@Nonnull String metricsConfigProperties) {
         config = new HashMap<String, String>();
         try {
@@ -153,6 +159,7 @@ public class DropwizardMetricsConfig {
     public boolean addMetrics(@Nonnull String className) {
         return "true".equals(config.get(className));
     }
+
 
  
 }
