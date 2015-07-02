@@ -20,8 +20,8 @@ package org.apache.sling.metrics.impl.dropwizard;
 import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Stack;
@@ -39,9 +39,7 @@ import com.codahale.metrics.MetricRegistry;
 
 public class DropwizardMetricsConfig {
 
-    private static final String _OUTPUT_KEY = "_output";
-    private PrintWriter output;
-    private HashMap<String, String> config;
+    private Map<String, String> config;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
     private MetricsActivator activator;
@@ -112,14 +110,7 @@ public class DropwizardMetricsConfig {
             Properties p = new Properties();
             FileInputStream f = new FileInputStream(metricsConfigProperties);
             p.load(f);
-            f.close();
-            if ( p.containsKey(_OUTPUT_KEY)) {
-                output = new PrintWriter((String)p.get(_OUTPUT_KEY));
-            } else {
-                output = null;
-                MetricsUtil.setWriter(null);            
-            }
-            
+            f.close();            
             for( Entry<Object, Object> e : p.entrySet()) {
                 config.put((String)e.getKey(),  (String) e.getValue());
             }
@@ -132,12 +123,7 @@ public class DropwizardMetricsConfig {
         
     }
     public void close() {
-        MetricsUtil.setWriter(null);
         MetricsUtil.setFactory(null);
-        if (output != null) {
-            output.close();
-            output = null;
-        }
         for (Closeable c : reporters) {
             try {
                 c.close();

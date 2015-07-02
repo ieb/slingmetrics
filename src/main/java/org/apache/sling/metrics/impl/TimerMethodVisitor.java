@@ -46,17 +46,14 @@ public class TimerMethodVisitor extends GeneratorAdapter {
 
     @Override
     public void visitCode() {
-        System.err.println("Adding Start Timer "+timerName);
         mv.visitLdcInsn(timerName);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, "getTimer", METRICS_UTIL_GETMETER_DESC, false);
         // store the meter.
         contextid = newLocal(Type.getType(Context.class));
         mv.visitVarInsn(Opcodes.ASTORE, contextid);
         super.visitCode();
-        System.err.println("Adding Stop Timer");
         mv.visitVarInsn(Opcodes.ALOAD, contextid);
         mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, CONTEXT_CL, "stop", "()V", true);
-        System.err.println("Done visit Code "+timerName);
     };
     
 }

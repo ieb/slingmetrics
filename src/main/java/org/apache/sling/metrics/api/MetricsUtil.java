@@ -17,28 +17,23 @@
  */
 package org.apache.sling.metrics.api;
 
-import java.io.PrintStream;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import aQute.bnd.annotation.ProviderType;
 
 /**
- * This is exported, but nothing should use it except the woven classes created by this package.
+ * Utiltiy method to perform basic operations on metrics without needding to bind to the metrics factory.
  */
+@ProviderType
 public class MetricsUtil {
 
-    protected static PrintStream writer = System.err;
     private static MetricsFactory factory = MetricsFactory.DEFAULT;
-    
-    public static void setWriter(@Nullable PrintStream writer) {
-        if (writer == null) {
-            MetricsUtil.writer = System.err;
-        } else {
-            MetricsUtil.writer = writer;            
-        }
-    }
-    
+
+    /**
+     * @param factory the current metrics factory in use. If set to null a
+     *            default implementation, that does nothing will be used.
+     */
     public static void setFactory(@Nullable MetricsFactory factory) {
         if (factory == null) {
             MetricsUtil.factory = MetricsFactory.DEFAULT;
@@ -46,19 +41,29 @@ public class MetricsUtil {
             MetricsUtil.factory = factory;
         }
     }
-    
 
-
+    /**
+     * @param name name of the timer to start timing with, on return the timer will have started.
+     * @return a TimerContext that must have TimerContext.stop() called to stop the timer.
+     */
     @Nonnull
     public static TimerContext getTimer(@Nonnull String name) {
         return factory.timerContext(name);
     }
-    
+
+    /**
+     * Increment a named counter by 1.
+     * @param name name of the counter
+     */
     @Nonnull
     public static void count(@Nonnull String name) {
         factory.counter(name).inc();
     }
 
+    /**
+     * Mark the meter with 1 occurrence.
+     * @param name name of the meter.
+     */
     @Nonnull
     public static void mark(@Nonnull String name) {
         factory.meter(name).mark();

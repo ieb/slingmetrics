@@ -27,12 +27,18 @@ import aQute.bnd.annotation.ProviderType;
 @ProviderType
 public interface TimerContext {
     
+    /**
+     * Default, do nothing implementation.
+     */
     TimerContext DEFAULT = new TimerContext() {        
         @Override
         public void stop() {
         }
     };
 
+    /**
+     * Stop the timer, must be called to record the elapsed time.
+     */
     void stop();
 
 }

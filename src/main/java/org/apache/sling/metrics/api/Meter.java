@@ -17,8 +17,17 @@
  */
 package org.apache.sling.metrics.api;
 
+import aQute.bnd.annotation.ProviderType;
+
+/**
+ * measure the rate of something.
+ */
+@ProviderType
 public interface Meter {
 
+    /**
+     * Default, do nothing implementation.
+     */
     Meter DEFAULT = new Meter() {
 
         @Override

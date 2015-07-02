@@ -48,7 +48,7 @@ public class MetricsWeavingHook implements WeavingHook {
 	@Override
 	public void weave(@Nonnull WovenClass wovenClass) {
 	    if ( activator.getMetricsConfig().addMetrics(wovenClass.getClassName())) {
-	        activator.log(LogService.LOG_INFO, "=============== Adding Metrics to class "+wovenClass.getClassName());
+	        activator.log(LogService.LOG_DEBUG, "Adding Metrics to class "+wovenClass.getClassName());
             ClassReader cr = new ClassReader(wovenClass.getBytes());
             ClassWriter cw = new OSGiFriendlyClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES,
                 wovenClass.getBundleWiring().getClassLoader());
@@ -59,8 +59,6 @@ public class MetricsWeavingHook implements WeavingHook {
     	        if (mcv.additionalImportRequired())
     	            wovenClass.getDynamicImports().add(addedImport);
 	        }
-	    } else {
-	        // activator.log(LogService.LOG_INFO, "Not Adding Metrics to class "+wovenClass.getClassName());
 	    }
 	}
 }

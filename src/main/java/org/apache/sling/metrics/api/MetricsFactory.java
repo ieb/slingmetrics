@@ -27,6 +27,9 @@ import aQute.bnd.annotation.ProviderType;
 @ProviderType
 public interface MetricsFactory {
 
+    /**
+     * Default, do nothing implementation.
+     */
     MetricsFactory DEFAULT = new MetricsFactory() {
 
         @Override
@@ -50,15 +53,31 @@ public interface MetricsFactory {
         }
     };
 
+    /**
+     * @param name name of the timer.
+     * @return a timer context, already started, must be stopped to complete the timing operation and record.
+     */
     @Nonnull
     TimerContext timerContext(@Nonnull String name);
     
+    /**
+     * @param name name of the counter.
+     * @return the counter associated with the name.
+     */
     @Nonnull
     Counter counter(@Nonnull String name);
     
+    /**
+     * @param name name of the histogram
+     * @return the histogram associated with the name.
+     */
     @Nonnull
     Histogram histogram(@Nonnull String name);
     
+    /**
+     * @param name name of the meter.
+     * @return the meter associated with the name.
+     */
     @Nonnull
     Meter meter(@Nonnull String name);
 

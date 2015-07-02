@@ -19,9 +19,15 @@ package org.apache.sling.metrics.api;
 
 import aQute.bnd.annotation.ProviderType;
 
+/**
+ * Count things that happen.
+ */
 @ProviderType
 public interface Counter {
 
+    /**
+     * Default, do nothing implementation.
+     */
     Counter DEFAULT = new Counter() {
         @Override
         public void inc() {
@@ -40,8 +46,20 @@ public interface Counter {
         }        
     };
 
+    /**
+     * increment by 1
+     */
     void inc();
+    /**
+     * increment by n
+     */
     void inc(long n);
+    /**
+     * decrement by 1
+     */
     void dec();
+    /**
+     * decrement by n
+     */
     void dec(long n);
 }

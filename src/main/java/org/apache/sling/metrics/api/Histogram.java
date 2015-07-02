@@ -17,7 +17,17 @@
  */
 package org.apache.sling.metrics.api;
 
+import aQute.bnd.annotation.ProviderType;
+
+/**
+ * Monitor a value producing a histogram.
+ */
+@ProviderType
 public interface Histogram {
+    
+    /**
+     * Default, do nothing implementation.
+     */
     Histogram DEFAULT = new Histogram() {
 
         @Override
@@ -29,8 +39,16 @@ public interface Histogram {
         }
     };
 
+    /**
+     * update the current value of the histogram.
+     * @param value
+     */
     void update(int value);
     
+    /**
+     * update the current value of the histogram.
+     * @param value
+     */
     void update(long value);
     
 }

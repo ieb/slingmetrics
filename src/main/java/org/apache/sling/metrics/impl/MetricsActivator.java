@@ -61,9 +61,12 @@ public class MetricsActivator implements BundleActivator {
 
     public void log(int level, @Nonnull String message) {
         synchronized (logServices) {
-            System.err.println("Metrics:"+message);
-            for (LogService log : logServices) {
-                log.log(level, message);
+            if (logServices.size() == 0) {
+                System.err.println("Metrics:"+message);                
+            } else {
+                for (LogService log : logServices) {
+                    log.log(level, message);
+                }
             }
         }
     }
