@@ -18,16 +18,18 @@
 package org.apache.sling.metrics.impl.dropwizard;
 
 import java.io.Closeable;
-import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Stack;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.sling.metrics.api.MetricsUtil;
 import org.apache.sling.metrics.impl.MetricsActivator;
@@ -36,19 +38,79 @@ import org.osgi.service.log.LogService;
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
+import com.esotericsoftware.yamlbeans.YamlReader;
 
+/**
+ * Configure dropwizards instrumentation from a yaml file.
+ * <pre>
+ * # global section
+ * global:
+ *    # montor the classnames loaded
+ *    monitor: true
+ *    # dump all classes and methods to a yaml config file
+ *    dumpfile: dumpfilename
+ *    # reporters section, true means run the reporter, some may have options.
+ *    reporters:
+ *      jmx: true
+ *      servlet: true
+ *      kibana: true
+ *      graphite: true
+ *      console:
+ *        period: 30
+ * 
+ * # class configuration, _monitor_class will monitor the class
+ * # a method name with a recognized metric option will cause all methods of that name to be instrumented.
+ * # a method name as a map will instrument individual method signatures as instructed.
+ * org.apache.sling.metrics.impl.dropwizard.DropwizardMetricsConfig:
+ *   _monitor_class: true
+ *   getConfig: timer
+ *   load:
+ *     (Ljava/lang/String;)V : timer
+ *   
+ * </pre>
+ */
 public class DropwizardMetricsConfig {
 
-    private Map<String, String> config;
+    private static final String PERIOD_OPT = "period";
+    private static final String CONSOLE_OPT = "console";
+    private static final String JMX_OPT = "jmx";
+    private static final String KIBANA_OPT = "kibana";
+    private static final String GRAPHITE_OPT = "graphite";
+    private static final String SERVLET_OPT = "servlet";
+    private static final String REPORTERS_CONFIG = "reporters";
+    private static final String DUMP_CONFIG = "dump";
+    private static final String DUMPFILE_OPT = "output";
+    private static final String DUMP_INCLUDE = "include";
+    private static final String DUMP_EXCLUDE = "exclude";
+    private static final String MONITOR_OPT = "monitor";
+    private static final String MONITOR_CLASS_OPT = "_monitor_class";
+    private static final String GLOBAL_CONFIG = "global";
+    private static final String METRICS_CONFIG_FILENAME = "metrics.yaml";
+    private static final String METRICS_CONFIG_PROP = "metrics.config";
+    private static final String TRUE_OPTION = "true";
+    private static final String METER_OPTION = "meter";
+    private static final String COUNTER_OPTION = "counter";
+    private static final String TIMER_OPTION = "timer";
+    private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
     private MetricsActivator activator;
     private MetricRegistry metricsRegistry = new MetricRegistry();
+    private boolean monitorClasses;
+    private FileWriter dumpFile;
+    private Object lastClassname;
+    private String lastName;
+    private String lastDesc;
+    private List<Pattern> dumpIncludes = new ArrayList<Pattern>();
+    private List<Pattern> dumpExcludes = new ArrayList<Pattern>();
 
     public DropwizardMetricsConfig(@Nonnull MetricsActivator activator) {
         this.activator = activator;
-        String metricsConfigProperties = System.getProperty("metrics.config", "metrics.config");
+        String metricsConfigProperties = System.getProperty(METRICS_CONFIG_PROP, METRICS_CONFIG_FILENAME);
         load(metricsConfigProperties);
+        monitorClasses = TRUE_OPTION.equals(getConfig(GLOBAL_CONFIG,MONITOR_OPT));
+        configureDump();
+               
         metricsFactory = new DropwizardMetricsFactory(metricsRegistry);
         MetricsUtil.setFactory(metricsFactory);
         
@@ -59,20 +121,80 @@ public class DropwizardMetricsConfig {
         
     }
     
+    private void configureDump() {
+        if (configExists(GLOBAL_CONFIG,DUMP_CONFIG)) {
+            try {
+                activator.log(LogService.LOG_INFO, " Dumping Classes to "+getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
+                dumpFile = new FileWriter(getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
+                dumpIncludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_INCLUDE));
+                dumpExcludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_EXCLUDE));                
+            } catch (IOException e) {
+                activator.log(LogService.LOG_ERROR, "Cant open dumpfile "+getConfig(GLOBAL_CONFIG,DUMP_CONFIG,  DUMPFILE_OPT));
+            }            
+        } else {
+            activator.log(LogService.LOG_INFO, "Not Dumping Classes");
+
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Nonnull
+    private List<Pattern> getPatterns(@Nullable Object configObject) {
+        List<Pattern> patterns = new ArrayList<Pattern>();
+        if (configObject instanceof List) {
+            for (String p : (List<String>)configObject) {
+                patterns.add(Pattern.compile(p));
+            }
+        }
+        return patterns;
+    }
+
+    @Nullable
+    private String getConfig(@Nonnull String ... path) {
+        Object o = getConfigObject(path);
+        if ( o instanceof String) {
+            return (String) o;
+        }
+        return null;
+    }
+    
+    
+    
+    @SuppressWarnings("unchecked")
+    @Nullable
+    private Object getConfigObject(@Nonnull String ... path) {
+        Map<String, Object> cfg =  configMap;
+        Object o = null;
+        for(String part : path) {
+            o = cfg.get(part);
+            if (o instanceof Map) {
+                cfg = (Map<String, Object>)o;
+            } else {
+                break;
+            }
+        }
+        return o;
+    }
+    
+    @Nullable
+    private boolean configExists(@Nonnull String ... path) {
+        return getConfigObject(path) != null;
+    }
+
+
     private void createOtherReporters() {
-        if (config.containsKey("_reporter_servlet")) {
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,SERVLET_OPT)) {
+        }
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,GRAPHITE_OPT)) {
             // TODO
         }
-        if (config.containsKey("_reporter_graphite")) {
-            // TODO
-        }
-        if (config.containsKey("_reporter_kibana")) {
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,KIBANA_OPT)) {
             // TODO
         }
     }
 
     private void createJMXReporter() {
-        if (config.containsKey("_reporter_jmx")) {
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,JMX_OPT)) {
             JmxReporter jmxReporter = JmxReporter.forRegistry(metricsRegistry).build();
             jmxReporter.start();
             reporters.push(jmxReporter);
@@ -80,10 +202,10 @@ public class DropwizardMetricsConfig {
     }
 
     private void createConsoleReporter() {
-        if (config.containsKey("_reporter_console")) {
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,CONSOLE_OPT)) {
             int t = 30;
             try {
-                t = Integer.parseInt(config.get("_reporter_console"));
+                t = Integer.parseInt(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,CONSOLE_OPT,PERIOD_OPT));
                 if ( t < 0) {
                     t = 30;
                 }
@@ -110,26 +232,28 @@ public class DropwizardMetricsConfig {
     }
 
     
-    private void load(@Nonnull String metricsConfigProperties) {
-        config = new HashMap<String, String>();
+    @SuppressWarnings("unchecked")
+    private void load(@Nonnull String metricsConfigYaml) {
         try {
-            Properties p = new Properties();
-            FileInputStream f = new FileInputStream(metricsConfigProperties);
-            p.load(f);
-            f.close();            
-            for( Entry<Object, Object> e : p.entrySet()) {
-                config.put((String)e.getKey(),  (String) e.getValue());
-            }
+            YamlReader yamlReader = new YamlReader(new FileReader(metricsConfigYaml));
+            configMap = (Map<String, Object>) yamlReader.read();
+            yamlReader.close();
         } catch (Exception e) {
+            activator.log(LogService.LOG_ERROR, "Unable to read "+metricsConfigYaml+" cause: "+e.getMessage());
             e.printStackTrace();
         }
-        
-        System.err.println("Metrics Config "+config);
-        
-        
+        activator.log(LogService.LOG_INFO, "Metrics Config :"+configMap);        
     }
     public void close() {
         MetricsUtil.setFactory(null);
+        if ( dumpFile != null) {
+            try {
+                dumpFile.close();
+            } catch (IOException e) {
+                activator.log(LogService.LOG_DEBUG, e.getMessage());
+            }
+        }
+            
         for (Closeable c : reporters) {
             try {
                 c.close();
@@ -138,26 +262,97 @@ public class DropwizardMetricsConfig {
             }
         }
     }
-    public boolean addMethodTimer(@Nonnull  String className, @Nonnull String name) {
-        return "timer".equals(config.get(className + "." + name));
+    public boolean addMethodTimer(@Nonnull  String className, @Nonnull String name, @Nonnull String desc) {
+        if (TRUE_OPTION.equals(getConfig(className,MONITOR_CLASS_OPT))) {
+            activator.log(LogService.LOG_INFO, "Checking Method: "+className + "." + name + desc);
+        }
+        dumpConfig(className, name, desc);
+        return TIMER_OPTION.equals(getConfig(className, name)) || TIMER_OPTION.equals(getConfig(className, name, desc));
     }
 
-    public boolean addCount(String className, String name) {
-        return "counter".equals(config.get(className + "." + name));
+
+    private void dumpConfig(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+        if(dumpFile != null) {
+            try {
+                if (!className.equals(lastClassname)) {
+                   dumpFile.write(className);
+                   dumpFile.write(":\n");
+                   lastClassname = className;
+                   lastName = "---";
+                   lastDesc = "---";
+                }
+                if (!name.equals(lastName)) {
+                    dumpFile.write("  ");
+                    dumpFile.write(name);
+                    dumpFile.write(":\n");
+                    lastName = name;            
+                    lastDesc = "---";
+                }
+                if (!desc.equals(lastDesc)) {
+                    dumpFile.write("     ");
+                    dumpFile.write(desc);
+                    dumpFile.write(": ");
+                    dumpFile.write(TIMER_OPTION);
+                    dumpFile.write("\n");
+                    lastDesc = desc;
+                }     
+            } catch (IOException e) {
+                activator.log(LogService.LOG_DEBUG, e.getMessage());
+            }
+        }
     }
 
-    public boolean addMark(String className, String name) {
-        return "meter".equals(config.get(className + "." + name));
+    private boolean includeInDump(String className) {
+        boolean include = true;
+        if (dumpFile == null) {
+            return false;
+        }
+        for(Pattern p : dumpIncludes) {
+            include = false;
+            if (p.matcher(className).matches()) {
+                include = true;
+                break;
+            }
+        }
+        for (Pattern p : dumpExcludes) {
+            if (p.matcher(className).matches()) {
+                include = false;
+                break;
+            }
+            
+        }
+        return include;
+    }
+
+    public boolean addCount(String className, String name, @Nonnull String desc) {
+        return COUNTER_OPTION.equals(getConfig(className, name)) || COUNTER_OPTION.equals(getConfig(className, name, desc));
+    }
+
+    public boolean addMark(String className, String name, @Nonnull String desc) {
+        return METER_OPTION.equals(getConfig(className, name)) || METER_OPTION.equals(getConfig(className, name, desc));
     }
 
     
     @Nonnull 
-    public String getMetricName(@Nonnull String className, @Nonnull String name) {
-        return DropwizardMetricsFactory.name(className, name);
+    public String getMetricName(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+        String option = getConfig(className, name);
+        if ( TIMER_OPTION.equals(option) || COUNTER_OPTION.equals(option) || METER_OPTION.equals(option)) {
+            return DropwizardMetricsFactory.name(className, name);            
+        } else {
+            return DropwizardMetricsFactory.name(className, name+desc);
+        }
     }
 
     public boolean addMetrics(@Nonnull String className) {
-        return "true".equals(config.get(className));
+        if (monitorClasses) {
+            activator.log(LogService.LOG_INFO, "Loading Class: "+className);
+        }
+        if (includeInDump(className)) {
+            // dump for all classes except asm classes, as if you try and instrument asm classes, you end up in recursion.
+            activator.log(LogService.LOG_INFO, "Dumping Class: "+className);
+            return true;
+        }
+        return configExists(className);
     }
 
 

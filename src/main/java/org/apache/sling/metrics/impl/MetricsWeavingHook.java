@@ -32,33 +32,43 @@ import org.osgi.service.log.LogService;
 public class MetricsWeavingHook implements WeavingHook {
     private final String addedImport;
     private final MetricsActivator activator;
+    private String bundleSymbolicName;
 
     MetricsWeavingHook(@Nonnull BundleContext context, @Nonnull MetricsActivator dwActivator) {
         activator = dwActivator;
 
         Bundle b = context.getBundle();
         String bver = b.getVersion().toString();
-        String bsn = b.getSymbolicName();
+        bundleSymbolicName = b.getSymbolicName();
 
         addedImport = MetricsUtil.class.getPackage().getName() +
-            ";bundle-symbolic-name=" + bsn +
+            ";bundle-symbolic-name=" + bundleSymbolicName +
             ";bundle-version=" + bver;
     }
 
 	@Override
 	public void weave(@Nonnull WovenClass wovenClass) {
-	    if ( activator.getMetricsConfig().addMetrics(wovenClass.getClassName())) {
+	    if ( foreignBundle(wovenClass) && activator.getMetricsConfig().addMetrics(wovenClass.getClassName())) {
 	        activator.log(LogService.LOG_DEBUG, "Adding Metrics to class "+wovenClass.getClassName());
-            ClassReader cr = new ClassReader(wovenClass.getBytes());
-            ClassWriter cw = new OSGiFriendlyClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES,
-                wovenClass.getBundleWiring().getClassLoader());
-	        MetricsClassVisitor mcv = new MetricsClassVisitor(cw, wovenClass.getClassName(), activator.getMetricsConfig(), activator);
-	        cr.accept(mcv, ClassReader.SKIP_FRAMES);
-	        if (mcv.isWoven()) {
-    	        wovenClass.setBytes(cw.toByteArray());
-    	        if (mcv.additionalImportRequired())
-    	            wovenClass.getDynamicImports().add(addedImport);
+            try {
+                ClassReader cr = new ClassReader(wovenClass.getBytes());
+                ClassWriter cw = new OSGiFriendlyClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES,
+                    wovenClass.getBundleWiring().getClassLoader());
+    	        MetricsClassVisitor mcv = new MetricsClassVisitor(cw, wovenClass.getClassName(), activator.getMetricsConfig(), activator);
+    	        cr.accept(mcv, ClassReader.SKIP_FRAMES);
+    	        if (mcv.isWoven()) {
+        	        wovenClass.setBytes(cw.toByteArray());
+        	        if (mcv.additionalImportRequired())
+        	            wovenClass.getDynamicImports().add(addedImport);
+    	        }
+	        } catch (Exception e) {
+	            activator.log(LogService.LOG_DEBUG, "Unable to weave class "+wovenClass.getClassName()+" cause "+e.getMessage());
 	        }
+	        
 	    }
 	}
+
+    private boolean foreignBundle(WovenClass wovenClass) {
+        return !bundleSymbolicName.equals(wovenClass.getBundleWiring().getBundle().getSymbolicName());
+    }
 }

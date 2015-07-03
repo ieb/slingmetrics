@@ -54,21 +54,21 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
     @Nonnull
     public MethodVisitor visitMethod(int access, @Nonnull String name, @Nonnull String desc,
             String signature, String[] exceptions) {
-        if ( metricsConfig.addMethodTimer(className, name) ) {
+        if ( metricsConfig.addMethodTimer(className, name, desc) ) {
             activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
             woven = true;
-            return new TimerMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name));            
-        } else if (metricsConfig.addCount(className, name)) {
+            return new TimerMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc));            
+        } else if (metricsConfig.addCount(className, name, desc)) {
             activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
             woven = true;
-            return new VoidMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name), "count");                        
-        } else if (metricsConfig.addMark(className, name)) {
+            return new VoidMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), "count");                        
+        } else if (metricsConfig.addMark(className, name, desc)) {
             activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
             woven = true;
-            return new VoidMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name), "mark");                        
+            return new VoidMethodVisitor(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), "mark");                        
         }
         activator.log(LogService.LOG_INFO, "Not Adding Metrics to method "+className+" "+name);
         return super.visitMethod(access, name, desc, signature, exceptions);

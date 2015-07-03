@@ -17,17 +17,263 @@ The bundle should be loaded at as low a start level as possible so that its Weav
 Configuration
 -------------
 
-To instrument a method, a configuration file must be created specifying which methods should be instrumented. By default this file is ./metrics.config relative to the JVM process working directory. This may be modified on the command line with -Dmetrics.config=<relative or absolute path to metrics.config>. The file is a standard properties file. It contains the names of classes and methods, and some special settings identified by a leading _. Instrumenting a method requires enabling the class for instrumentation and then defining the type of instrumentation on the method.
+To instrument a method, a configuration file must be created specifying which methods should be instrumented. By default this file is ./metrics.yaml relative to the JVM process working directory. This may be modified on the command line with -Dmetrics.config=<relative or absolute path to metrics.yaml>. The file is a standard yaml file. With the following structure
 
-    <classname>: true
-    <classname>.<methodname>: timer|meter|counter
+    global:
+        <global settings>
+    <classname>:
+        <class specific settings>
+        
+Global Settings
+---------------
+
+Monitoring: 
+
+    global:
+      monitor: true
+
+With global monitoring on the instance will log at info level the name of every class encountered.
+
+Dump File:
+
+    global:
+      dump:
+        output: <dumpfilename>
+        include:
+           - <regex of class to include>
+           - <regex of class to include>
+        exclude:
+           - <regex of class to exclude>
+           - <regex of class to exclude>
+      
+If a dump file is specified a Yaml file will be created containing configuration for every class, every method, every signature configured to use timer instrumentation. This file could be larger, but makes the job of instrumenting a large system easier as the yaml can be post processed to create a configuration. Include, if present will filter all classes and only include those classes that match one of the regexes. Exclude will exclude a class that matches one of the regexes.
+
+Reporters:
+
+    global:
+      reporters:
+        jmx: true
+        servlet: true
+        kibana:
+          url: http://monioring.example.com          
+        graphite: true
+        console:
+          period: 30
+  
+A number of reporters are supported within the core bundle, and some of those reporters have configuration options. This area is WIP, currently only console and JMX are fully supported.
+
+
+Per Class Configuration
+-----------------------
+
+Every class may have its own configuration identified by its classname, even classes in the monitoring bundle may be monitored provided they are loaded after the activator has initialized.
+
+Monitoring:
+
+    org.apache.jackrabbit.oak.core.MutableTree:
+      _monitor_class: true
+      
+A class may be monitored to log all methods present at INFO level.
+
+Instrumenting methods by name:
+      
+    org.apache.jackrabbit.oak.core.MutableTree:
+      setProperty: timer
+      
+To instrument all methods that match a name, configure the method with an instrumentation type. All methods may be instrumented regardless of visibility. In the above configuration all methods with a method name of setProperty in MutableTree will be instrumented with the same timer metric. If different metrics are required, instrument by signature as below.
+
+Instrumenting methods by signature:
+      
+    org.apache.jackrabbit.oak.core.MutableTree:
+      setProperty:
+        <T:Ljava/lang/Object;>(Ljava/lang/String;TT;)V: timer
+
+There are several signatures of setProperty in MutableTree. In the above example only 1 will be instrumented. 
+
+    public <T> void setProperty(@Nonnull String name, @Nonnull T value) { ... }
     
-Where timer causes a timer to be wrapped around the method, meter inserts a meter at the start of the method and counter inserts a counter at the start of the method. At present, all method names that match the pattern will have the same instrumentation applied. This may change if it proves un-workable.
+This method has a signature of 
+
+    <T:Ljava/lang/Object;>(Ljava/lang/String;TT;)V
+    
+Which can be discovered by looking at the byte code for the class, mentally converting the signature into a byte code description or using the \_monitor\_class option to log the methods.
+
+      
+Instrumentation types
+---------------------
+
+Timers time the duration of the method call, calculating the following metics.
+
+    org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
+             count = 1
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.00 calls/second
+    15-minute rate = 0.00 calls/second
+               min = 0.04 milliseconds
+               max = 0.04 milliseconds
+              mean = 0.04 milliseconds
+            stddev = 0.00 milliseconds
+            median = 0.04 milliseconds
+              75% <= 0.04 milliseconds
+              95% <= 0.04 milliseconds
+              98% <= 0.04 milliseconds
+              99% <= 0.04 milliseconds
+            99.9% <= 0.04 milliseconds
+    
+
+A meter will measure the rate of call generating the following staticstics.
+
+    org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
+             count = 1
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.00 calls/second
+    15-minute rate = 0.00 calls/second
+
+A counter is the simplest, measuring only the number of calls.        
+        
+
+    org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
+             count = 1
+    
+    
 
 Activating a configuration
 --------------------------
 
 While OSGi does allow this bundle to restart there are some issues. Restarting the bundle will not cause bundles that do not depend on this bundle to restart, and if the classes have already been loaded they wont be instrumented. Bundles that have already been instrumented by this bundle will restart. Both can be confusing and although care has been taken not to leak objects or references, it is probably best to restart the JVM to ensure that the weaving is performed as configured. Once a bundle is installed with a low start level (eg 1), that start level will be used on startup. If no start level is specified, the start level will be 20, too late to instrument many classes.
+
+
+Instrumenting a code base
+-------------------------
+
+With millions of methods in a JVM creating a configuraiton for a code base can be daunting. Its often best to use the dump functionality to generate the configruation and work from there. To do that start with a configuration that dumps everything of interest. 
+
+
+    global:
+      reporters:
+        jmx: true
+        console:
+          period: 30
+      dump:
+        output: metrics_dump.yaml
+        exclude:
+           - java\.lang\..*
+        include:
+           - org.apache.jackrabbit.core\..*
+           
+Then run the OSGi container. The matched classes and methods will be dumped in Yaml format to metrics_dump.yaml. 
+
+    org.apache.jackrabbit.core.config.RepositoryConfig:
+      install:
+         (Ljava/io/File;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Ljava/util/Properties;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+      getRepositoryHome:
+         (Ljava/util/Properties;)Ljava/io/File;: timer
+      install:
+         (Ljava/io/File;Ljava/io/File;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+      installRepositorySkeleton:
+         (Ljava/io/File;Ljava/io/File;Ljava/net/URL;)V: timer
+      create:
+         (Ljava/io/File;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Ljava/io/File;Ljava/io/File;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Ljava/lang/String;Ljava/lang/String;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Ljava/net/URI;Ljava/lang/String;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Ljava/io/InputStream;Ljava/lang/String;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Lorg/xml/sax/InputSource;Ljava/lang/String;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Lorg/xml/sax/InputSource;Ljava/util/Properties;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+         (Lorg/apache/jackrabbit/core/config/RepositoryConfig;)Lorg/apache/jackrabbit/core/config/RepositoryConfig;: timer
+      <init>:
+         (Ljava/lang/String;Lorg/apache/jackrabbit/core/config/SecurityConfig;Lorg/apache/jackrabbit/core/fs/FileSystemFactory;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILorg/w3c/dom/Element;Lorg/apache/jackrabbit/core/config/VersioningConfig;Lorg/apache/jackrabbit/core/query/QueryHandlerFactory;Lorg/apache/jackrabbit/core/config/ClusterConfig;Lorg/apache/jackrabbit/core/data/DataStoreFactory;Lorg/apache/jackrabbit/core/util/RepositoryLockMechanismFactory;Lorg/apache/jackrabbit/core/config/DataSourceConfig;Lorg/apache/jackrabbit/core/util/db/ConnectionFactory;Lorg/apache/jackrabbit/core/config/RepositoryConfigurationParser;)V: timer
+         etc etc etc
+
+
+You can then select several classes and methods to instrument the methods of interest.
+
+
+
+    global:
+      reporters:
+        jmx: true
+        console:
+          period: 30
+    org.apache.jackrabbit.core.SessionImpl:
+      <init>: timer
+      save: timer
+      refresh: timer 
+      logout: timer
+
+and restart the OSGi container. The console reporter will produce output as follows every 30s.
+
+
+    7/3/15 12:46:18 PM =============================================================
+
+    -- Timers ----------------------------------------------------------------------
+    org.apache.jackrabbit.core.SessionImpl.<init>
+	             count = 327
+	         mean rate = 0.59 calls/second
+	     1-minute rate = 0.54 calls/second
+	     5-minute rate = 0.79 calls/second
+	    15-minute rate = 1.45 calls/second
+	               min = 0.00 milliseconds
+	               max = 0.05 milliseconds
+	              mean = 0.00 milliseconds
+	            stddev = 0.00 milliseconds
+	            median = 0.00 milliseconds
+	              75% <= 0.00 milliseconds
+	              95% <= 0.00 milliseconds
+	              98% <= 0.00 milliseconds
+	              99% <= 0.00 milliseconds
+	            99.9% <= 0.00 milliseconds
+	org.apache.jackrabbit.core.SessionImpl.logout
+	             count = 158
+	         mean rate = 0.29 calls/second
+	     1-minute rate = 0.27 calls/second
+	     5-minute rate = 0.60 calls/second
+	    15-minute rate = 1.43 calls/second
+	               min = 0.00 milliseconds
+	               max = 0.00 milliseconds
+	              mean = 0.00 milliseconds
+	            stddev = 0.00 milliseconds
+	            median = 0.00 milliseconds
+	              75% <= 0.00 milliseconds
+	              95% <= 0.00 milliseconds
+	              98% <= 0.00 milliseconds
+	              99% <= 0.00 milliseconds
+	            99.9% <= 0.00 milliseconds
+	org.apache.jackrabbit.core.SessionImpl.refresh
+	             count = 80
+	         mean rate = 0.15 calls/second
+	     1-minute rate = 0.16 calls/second
+	     5-minute rate = 0.38 calls/second
+	    15-minute rate = 0.94 calls/second
+	               min = 0.00 milliseconds
+	               max = 0.00 milliseconds
+	              mean = 0.00 milliseconds
+	            stddev = 0.00 milliseconds
+	            median = 0.00 milliseconds
+	              75% <= 0.00 milliseconds
+	              95% <= 0.00 milliseconds
+	              98% <= 0.00 milliseconds
+	              99% <= 0.00 milliseconds
+	            99.9% <= 0.00 milliseconds
+	org.apache.jackrabbit.core.SessionImpl.save
+	             count = 48
+	         mean rate = 0.09 calls/second
+	     1-minute rate = 0.11 calls/second
+	     5-minute rate = 0.17 calls/second
+	    15-minute rate = 0.37 calls/second
+	               min = 0.00 milliseconds
+	               max = 0.01 milliseconds
+	              mean = 0.00 milliseconds
+	            stddev = 0.00 milliseconds
+	            median = 0.00 milliseconds
+	              75% <= 0.00 milliseconds
+	              95% <= 0.00 milliseconds
+	              98% <= 0.00 milliseconds
+	              99% <= 0.00 milliseconds
+	            99.9% <= 0.00 milliseconds
 
 Performance
 -----------

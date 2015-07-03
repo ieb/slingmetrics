@@ -69,7 +69,7 @@
                         <Import-Package>
                         sun.misc.*;resolution:=optional,*
                         </Import-Package>
-                        <Embed-Dependency>asm-debug-all, metrics-core
+                        <Embed-Dependency>asm-debug-all, metrics-core, yamlbeans
                         </Embed-Dependency>
                     </instructions>
                 </configuration>
@@ -114,6 +114,11 @@
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>org.osgi.compendium</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.esotericsoftware.yamlbeans</groupId>
+            <artifactId>yamlbeans</artifactId>
+            <version>1.08</version>
         </dependency>
         <dependency>
           <groupId>io.dropwizard.metrics</groupId>
