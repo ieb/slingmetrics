@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import javax.annotation.Nullable;
 
 import org.apache.sling.metrics.api.MetricsUtil;
 import org.apache.sling.metrics.impl.MetricsActivator;
+import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
 import org.osgi.service.log.LogService;
 
 import com.codahale.metrics.ConsoleReporter;
@@ -71,10 +73,14 @@ import com.esotericsoftware.yamlbeans.YamlReader;
  */
 public class DropwizardMetricsConfig {
 
+    private static final String ED_PERIOD_OPT = "period";
+    private static final String ES_INSTANCE_ID_OPT = "instanceId";
+    private static final String ES_CUSTOMER_ID_OPT = "customerId";
+    private static final String ES_SERVERS_OPT = "servers";
     private static final String PERIOD_OPT = "period";
     private static final String CONSOLE_OPT = "console";
     private static final String JMX_OPT = "jmx";
-    private static final String KIBANA_OPT = "kibana";
+    private static final String ELASTIC_SEARCH = "elastic_search";
     private static final String GRAPHITE_OPT = "graphite";
     private static final String SERVLET_OPT = "servlet";
     private static final String REPORTERS_CONFIG = "reporters";
@@ -163,6 +169,9 @@ public class DropwizardMetricsConfig {
     @SuppressWarnings("unchecked")
     @Nullable
     private Object getConfigObject(@Nonnull String ... path) {
+        if (configMap == null) {
+            return null;
+        }
         Map<String, Object> cfg =  configMap;
         Object o = null;
         for(String part : path) {
@@ -188,8 +197,32 @@ public class DropwizardMetricsConfig {
         if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,GRAPHITE_OPT)) {
             // TODO
         }
-        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,KIBANA_OPT)) {
-            // TODO
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH)) {
+            try {
+                Builder b =  ElasticSearchReporter.fromRegistry(metricsRegistry);
+                List<String> hosts = (List<String>) getConfigObject(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_SERVERS_OPT);
+                for (String h : hosts) {
+                    URL u = new URL(h);
+                    b.addServerUrl(u);
+                }
+                if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_CUSTOMER_ID_OPT)) {
+                    b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_CUSTOMER_ID_OPT));
+                }
+                if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT)) {
+                    b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
+                }
+                ElasticSearchReporter r = b.build();
+                int reportingPeriod = 60;
+                if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ED_PERIOD_OPT)) {
+                    reportingPeriod = Integer.parseInt(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ED_PERIOD_OPT));
+                }
+                r.start(reportingPeriod, TimeUnit.SECONDS);
+                reporters.add(r);
+                System.err.println("Registered Elastic Search Reporter, reporting interval "+reportingPeriod);
+            } catch (Exception e) {
+                e.printStackTrace();
+                activator.log(LogService.LOG_ERROR, "Unable to create elastic serach reportoer cause:"+e.getMessage());
+            }
         }
     }
 
@@ -198,6 +231,7 @@ public class DropwizardMetricsConfig {
             JmxReporter jmxReporter = JmxReporter.forRegistry(metricsRegistry).build();
             jmxReporter.start();
             reporters.push(jmxReporter);
+            System.err.println("Registered JMC reporter");
         }
     }
 

@@ -1,0 +1,11 @@
+global:
+  reporters:
+    jmx: true
+    console:
+      period: 30
+  dump:
+    output: metrics_dump.yaml
+    exclude:
+       - java\.lang\..*
+    include:
+      - org.apache.jackrabbit.oak\..*

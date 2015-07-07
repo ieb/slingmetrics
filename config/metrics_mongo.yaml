@@ -1,0 +1,89 @@
+global:
+  reporters:
+    jmx: true
+org.apache.jackrabbit.oak.plugins.document.mongo.MongoDocumentStore:
+  <init>: timer
+  checkVersion: timer
+  createOffHeapCache: timer
+  finalize: timer
+  invalidateCache:
+     ()Lorg/apache/jackrabbit/oak/plugins/document/cache/CacheInvalidationStats;: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;)V: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/util/List;)V: timer
+  find:
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;)Lorg/apache/jackrabbit/oak/plugins/document/Document;: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;I)Lorg/apache/jackrabbit/oak/plugins/document/Document;: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;ZI)Lorg/apache/jackrabbit/oak/plugins/document/Document;: timer
+  findUncachedWithRetry: timer
+  findUncached: timer
+  query:
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;Ljava/lang/String;I)Ljava/util/List;: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JI)Ljava/util/List;: timer
+  canUseModifiedTimeIdx: timer
+  remove:
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/lang/String;)V: timer
+     (Lorg/apache/jackrabbit/oak/plugins/document/Collection;Ljava/util/List;)V: timer
+  findAndModify: timer
+  createOrUpdate: timer
+  findAndUpdate: timer
+  create: timer
+  update: timer
+  getReadPreference: timer
+  getDefaultReadPreference: timer
+  getMongoReadPreference: timer
+  getConfiguredReadPreference: timer
+  convertFromDBObject: timer
+  convertMongoMap: timer
+  getDBCollection: timer
+  getByKeyQuery: timer
+  dispose: timer
+  getCacheStats: timer
+  getMetadata: timer
+  getMaxDeltaForModTimeIdxSecs: timer
+  getDisableIndexHint: timer
+  getCacheEntries: timer
+  getCachedNodeDoc: timer
+  log: timer
+  getIfCached: timer
+  applyToCache: timer
+  addToCache: timer
+  createQueryForUpdate: timer
+  createUpdate: timer
+  getParentId: timer
+  acquire: timer
+  acquireExclusive: timer
+  setReadWriteMode: timer
+  getTime: timer
+  setClock: timer
+org.apache.jackrabbit.oak.plugins.document.mongo.MongoBlobStore:
+  <init>:
+     (Lcom/mongodb/DB;)V: timer
+     (Lcom/mongodb/DB;J)V: timer
+  storeBlock: timer
+  readBlockFromBackend: timer
+  startMark: timer
+  isMarkEnabled: timer
+  mark: timer
+  sweep: timer
+  getBlobCollection: timer
+  initBlobCollection: timer
+  getBlob: timer
+  getBlobQuery: timer
+  deleteChunks: timer
+  getAllChunkIds: timer
+org.apache.jackrabbit.oak.plugins.document.mongo.MongoDiffCache:
+  <init>: timer
+  getChanges: timer
+  newEntry: timer
+  getChangesInternal: timer
+  access$200: timer
+  access$300: timer
+org.apache.jackrabbit.oak.plugins.document.mongo.MongoVersionGCSupport:
+  <init>: timer
+  getPossiblyDeletedDocs: timer
+  createCleanUp: timer
+  identifyGarbage: timer
+  createQuery: timer
+  logSplitDocIdsTobeDeleted: timer
+  getNodeCollection: timer
+  getPossiblyDeletedDocs: timer
