@@ -73,6 +73,12 @@ import com.esotericsoftware.yamlbeans.YamlReader;
  */
 public class DropwizardMetricsConfig {
 
+    private static final String TYPE = "type";
+    private static final String KEY_METHOD = "keyMethod";
+    /**
+     * If true, as a property of a class, the classbytecode will be dumped to the working directory.
+     */
+    private static final String DUMP_CLASS = "_dumpClass";
     private static final String ED_PERIOD_OPT = "period";
     private static final String ES_INSTANCE_ID_OPT = "instanceId";
     private static final String ES_CUSTOMER_ID_OPT = "customerId";
@@ -97,6 +103,8 @@ public class DropwizardMetricsConfig {
     private static final String METER_OPTION = "meter";
     private static final String COUNTER_OPTION = "counter";
     private static final String TIMER_OPTION = "timer";
+    private static final Object RETURNCOUNT_OPTION = "count_return";
+    private static final Object RETURNMETER_OPTION = "meter_return";
     private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
@@ -211,6 +219,7 @@ public class DropwizardMetricsConfig {
                 if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT)) {
                     b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
                 }
+                b.withActivator(activator);
                 ElasticSearchReporter r = b.build();
                 int reportingPeriod = 60;
                 if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ED_PERIOD_OPT)) {
@@ -231,7 +240,7 @@ public class DropwizardMetricsConfig {
             JmxReporter jmxReporter = JmxReporter.forRegistry(metricsRegistry).build();
             jmxReporter.start();
             reporters.push(jmxReporter);
-            System.err.println("Registered JMC reporter");
+            System.err.println("Registered JMX reporter");
         }
     }
 
@@ -358,12 +367,28 @@ public class DropwizardMetricsConfig {
         return include;
     }
 
-    public boolean addCount(String className, String name, @Nonnull String desc) {
+    public boolean addCount(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
         return COUNTER_OPTION.equals(getConfig(className, name)) || COUNTER_OPTION.equals(getConfig(className, name, desc));
     }
 
-    public boolean addMark(String className, String name, @Nonnull String desc) {
+    public boolean addMark(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
         return METER_OPTION.equals(getConfig(className, name)) || METER_OPTION.equals(getConfig(className, name, desc));
+    }
+    
+    public boolean addReturnCount(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+        return RETURNCOUNT_OPTION.equals(getConfig(className, name, TYPE)) || RETURNCOUNT_OPTION.equals(getConfig(className, name, desc, TYPE));
+    }
+    public boolean addReturnMark(@Nonnull String className,@Nonnull  String name, @Nonnull String desc) {
+        return RETURNMETER_OPTION.equals(getConfig(className, name, TYPE)) || RETURNMETER_OPTION.equals(getConfig(className, name, desc, TYPE));
+    }
+
+    @Nullable
+    public String getReturnKeyMethod(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+        String methodName = getConfig(className, name, desc, KEY_METHOD);
+        if (methodName == null) {
+            methodName = getConfig(className, name, KEY_METHOD);            
+        }
+        return methodName;
     }
 
     
@@ -388,6 +413,12 @@ public class DropwizardMetricsConfig {
         }
         return configExists(className);
     }
+
+    public boolean dumpClass(String className) {
+        return TRUE_OPTION.equals(getConfig(className,DUMP_CLASS));
+    }
+
+
 
 
  

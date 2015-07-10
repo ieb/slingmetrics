@@ -20,10 +20,13 @@ package org.apache.sling.metrics.impl;
 import javax.annotation.Nonnull;
 
 import org.apache.sling.metrics.api.MetricsUtil;
+import org.apache.sling.metrics.api.ReturnCapture;
 import org.apache.sling.metrics.api.TimerContext;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.AdviceAdapter;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import com.codahale.metrics.Timer.Context;
@@ -31,7 +34,7 @@ import com.codahale.metrics.Timer.Context;
 /**
  * Adapts method calls wrapping the byte code of the method with calls to a meter.
  */
-public class TimerMethodVisitor extends GeneratorAdapter {
+public class TimerAdapter extends AdviceAdapter {
 
     private static final String CONTEXT_CL = TimerContext.class.getName().replace('.', '/');
     private static final String METRICS_UTIL_CL = MetricsUtil.class.getName().replace('.', '/');
@@ -39,21 +42,26 @@ public class TimerMethodVisitor extends GeneratorAdapter {
     private int contextid;
     private String timerName;
 
-    public TimerMethodVisitor(@Nonnull MethodVisitor mv, int access, @Nonnull String name, @Nonnull String descriptor, @Nonnull String timerName) {
+    public TimerAdapter(@Nonnull MethodVisitor mv, int access, @Nonnull String name, @Nonnull String descriptor, @Nonnull String timerName) {
         super(Opcodes.ASM4, mv, access, name, descriptor);
         this.timerName = timerName;
     }
-
+    
     @Override
-    public void visitCode() {
+    protected void onMethodEnter() {
+        ReturnCapture.countCapture(timerName, timerName);
         mv.visitLdcInsn(timerName);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, "getTimer", METRICS_UTIL_GETMETER_DESC, false);
         // store the meter.
         contextid = newLocal(Type.getType(Context.class));
         mv.visitVarInsn(Opcodes.ASTORE, contextid);
-        super.visitCode();
+    }
+    
+    @Override
+    protected void onMethodExit(int opcode) {
         mv.visitVarInsn(Opcodes.ALOAD, contextid);
         mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, CONTEXT_CL, "stop", "()V", true);
-    };
+    }
+
     
 }

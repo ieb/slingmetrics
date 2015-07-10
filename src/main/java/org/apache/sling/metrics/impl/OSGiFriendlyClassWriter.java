@@ -18,6 +18,7 @@
  */
 package org.apache.sling.metrics.impl;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
@@ -39,6 +40,8 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
 
   private static final String OBJECT_INTERNAL_NAME = "java/lang/Object";
   private final ClassLoader loader;
+private String className;
+private boolean dumpClass;
 
 
   public OSGiFriendlyClassWriter(ClassReader arg0, int arg1, ClassLoader loader) {
@@ -47,12 +50,32 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
     this.loader = loader;
   }
 
-  public OSGiFriendlyClassWriter(int arg0, ClassLoader loader) {
+  public OSGiFriendlyClassWriter(int arg0, ClassLoader loader, String className, boolean dumpClass) {
     super(arg0);
 
     this.loader = loader;
+    this.className = className;
+    this.dumpClass = dumpClass;
   }
 
+  
+  @Override
+    public byte[] toByteArray() {
+        byte[] b = super.toByteArray();
+        if (dumpClass) {
+            try {
+                FileOutputStream fo = new FileOutputStream(className+".class");
+                fo.write(b);
+                fo.close();
+                System.err.println("Written "+b.length+" to "+className+".class");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return b;
+    }
+  
+  
   /**
    * We provide an implementation that doesn't cause class loads to occur. It may
    * not be sufficient because it expects to find the common parent using a single

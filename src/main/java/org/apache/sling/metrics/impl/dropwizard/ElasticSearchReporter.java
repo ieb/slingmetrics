@@ -18,9 +18,11 @@
 package org.apache.sling.metrics.impl.dropwizard;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -32,6 +34,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.sling.metrics.impl.MetricsActivator;
+import org.osgi.service.log.LogService;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -145,6 +153,8 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
         private int maxCommands = 1000;
 
+        private MetricsActivator activator;
+
         public Builder(MetricRegistry registry) {
             this.registry = registry;
         }
@@ -193,10 +203,16 @@ public class ElasticSearchReporter extends ScheduledReporter {
             this.maxCommands = maxCommands;
             return this;
         }
+        public Builder withActivator(MetricsActivator activator) {
+            this.activator = activator;
+            return this;
+        }
+
 
         public ElasticSearchReporter build() throws IOException {
-            return new ElasticSearchReporter(registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
+            return new ElasticSearchReporter(activator, registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
         }
+
 
     }
 
@@ -220,9 +236,14 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
     private List<URL> hosts;
 
-    protected ElasticSearchReporter(MetricRegistry registry, String name, MetricFilter filter,
-            TimeUnit rateUnit, TimeUnit durationUnit,String customerId, String instanceId, List<URL> hosts, int timeout, int maxCommands) throws IOException {
+    private MetricsActivator activator;
+
+    protected ElasticSearchReporter(@Nullable MetricsActivator activator,
+            @Nonnull MetricRegistry registry, @Nonnull String name, @Nonnull MetricFilter filter,
+           @Nonnull TimeUnit rateUnit, @Nonnull TimeUnit durationUnit, @Nonnull String customerId, @Nonnull String instanceId,
+           @Nonnull List<URL> hosts, int timeout, int maxCommands) throws IOException {
         super(registry, name, filter, rateUnit, durationUnit);
+        this.activator = activator;
         this.timeout = timeout;
         this.customerId = customerId;
         this.instanceId = instanceId;
@@ -241,46 +262,50 @@ public class ElasticSearchReporter extends ScheduledReporter {
             SortedMap<String, Meter> meters, SortedMap<String, Timer> timers) {
         if (gauges.isEmpty() && counters.isEmpty() && histograms.isEmpty() && meters.isEmpty()
             && timers.isEmpty()) {
-            System.err.println("No Metrics data to send");
+            
+            debug("No Metrics data to send");
             return;
         }
         long timestamp = System.currentTimeMillis();
-        System.err.println("Sending metrics data to elastic search");
+        info("Sending "+(gauges.size()+counters.size()+histograms.size()+meters.size()+timers.size())+" metrics to elastic search.");
         try{
-            Updater u = new Updater(hosts, "/_bulk", "POST", timeout, maxCommands);
-            System.err.println("Sending "+gauges.size()+" Gauges");
+            Updater u = new Updater(hosts, "/_bulk", "POST", timeout, maxCommands, this);
             for ( Entry<String, Gauge> e : gauges.entrySet()) {
                 sendGuage(e.getKey(), e.getValue(), timestamp, u);
             }
-            System.err.println("Sending "+counters.size()+" counters");
             for ( Entry<String, Counter> e : counters.entrySet()) {
                 sendCounter(e.getKey(), e.getValue(), timestamp, u);
             }
-            System.err.println("Sending "+histograms.size()+" histograms");
             for ( Entry<String, Histogram> e : histograms.entrySet()) {
                 sendHistogram(e.getKey(), e.getValue(), timestamp, u);
             }
-            System.err.println("Sending "+meters.size()+" counters");
             for ( Entry<String, Meter> e : meters.entrySet()) {
                 sendMeter(e.getKey(), e.getValue(), timestamp, u);
             }
-            System.err.println("Sending "+timers.size()+" timers");
             for ( Entry<String, Timer> e : timers.entrySet()) {
-                System.err.println("Sending timer "+e.getKey());
                 sendTimer(e.getKey(), e.getValue(), timestamp, u);
             }
-            System.err.println("Final flush");
             u.close();
-            System.err.println("All Done");
         } catch (IOException e) {
-            System.err.println(" Failed ");
-            e.printStackTrace();
+            debug(" Failed "+e.getMessage());
         }
-        System.err.println(" Done reporting ");
+        debug(" Done reporting ");
     }
     
     
     
+
+    private void debug(String message) {
+        if (activator != null) {
+            activator.log(LogService.LOG_DEBUG, message);
+        }
+    }
+    
+    private void info(String message) {
+        if (activator != null) {
+            activator.log(LogService.LOG_INFO, message);
+        }
+    }
 
     private void sendGuage(String name, Gauge value, long timestamp, Updater w) throws IOException {
         w.action(indexAction(index, GAUGE_TYP));
@@ -314,9 +339,7 @@ public class ElasticSearchReporter extends ScheduledReporter {
     }
 
     private void sendTimer(String name, Timer value, long ts, Updater w) throws IOException {
-        System.err.println("Sending action");
         w.action(indexAction(index, TIMER_TYP));
-        System.err.println("Done Sending action, sending data");
         w.source(mapAdd(mapAddHistogtam(standardFields(name, ts), value.getSnapshot(), durationFactor),
             COUNT_FLD, value.getCount(),
             M1_RATE_FLD, value.getOneMinuteRate() * rateFactor,
@@ -326,7 +349,6 @@ public class ElasticSearchReporter extends ScheduledReporter {
             RATE_UNITS_FLD, "calls/"+rateUnits,
             DURATION_UNITS_FLD, durationUnits
             ));        
-        System.err.println("Done Sending data");
     }
     
 
@@ -367,11 +389,11 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
 
     private void checkIndexExists() throws IOException {
-        Updater u = new Updater(hosts,  _TEMPLATE_SLING_METRICS_URI, HTTP_HEAD, timeout, 10);
+        Updater u = new Updater(hosts,  _TEMPLATE_SLING_METRICS_URI, HTTP_HEAD, timeout, 10, this);
         u.openConection();
         HttpURLConnection c = u.disconnect();
         if (c.getResponseCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-            u = new Updater(hosts, _TEMPLATE_SLING_METRICS_URI, HTTP_PUT, timeout, 10);
+            u = new Updater(hosts, _TEMPLATE_SLING_METRICS_URI, HTTP_PUT, timeout, 10, this);
             u.action(createMap(TEMPLATE_FLD, index+"*", "mappings", INDEX_MAPPINGS));
             c = u.disconnect();
             if (c.getResponseCode() != 200) {                
@@ -393,14 +415,17 @@ public class ElasticSearchReporter extends ScheduledReporter {
         private String uri;
         private int timeout;
         private List<URL> hosts;
-        private Format dateFormat;
+        private boolean debug = (System.getProperty("metrics.debug") != null);
+        private ElasticSearchReporter reporter;
 
-        public Updater(List<URL> hosts, String uri,  String method, int timeout, int maxCommands) {
+        public Updater(List<URL> hosts, String uri,  String method, int timeout, int maxCommands, ElasticSearchReporter reporter) {
             this.hosts = hosts;
+            
             this.timeout = timeout;
             this.maxCommands = maxCommands;
             this.method = method;
             this.uri = uri;
+            this.reporter = reporter;
             this.currentCommand = 0;
         }
         
@@ -410,16 +435,11 @@ public class ElasticSearchReporter extends ScheduledReporter {
         }
 
         public void action(Map<String, Object> action) throws IOException {
-            System.err.println("Will send "+action+" currentCommand "+ currentCommand+ " max commands "+maxCommands);
             if (connection == null || ((currentCommand % maxCommands) == 0) ) {
-                System.err.println("Opening connection");
                 openConection();
-                System.err.println("Done Opening connection");
             }
             currentCommand++;
-            System.err.println("Writing action map "+action);
             writeMap(action);
-            System.err.println("Done Writing action map "+action);
             writer.write("\n");
         }
         
@@ -428,7 +448,6 @@ public class ElasticSearchReporter extends ScheduledReporter {
         
         public void close() throws IOException {
             if (connection != null) {
-                System.err.println("Closing Connection");
                 if (writer != null) {
                     writer.flush();
                     writer.close();                    
@@ -437,23 +456,24 @@ public class ElasticSearchReporter extends ScheduledReporter {
                 dumpResult();
                 connection = null;
                 writer = null;
-                System.err.println("Done Closing Connection");
             }            
         }
         
         private void dumpResult() throws IOException {
-            System.err.println("Response "+connection.getResponseCode()+" "+connection.getResponseMessage());
-            try {
-                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                String l = in.readLine();
-                System.err.println("-- start --");
-                while (l != null) {
-                    System.err.println(l);
-                    l = in.readLine();
+            if (debug) {
+                reporter.debug("Response "+connection.getResponseCode()+" "+connection.getResponseMessage());
+                try {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    String l = in.readLine();
+                    reporter.debug("-- start --");
+                    while (l != null) {
+                        reporter.debug(l);
+                        l = in.readLine();
+                    }
+                    reporter.debug("-- end --");
+                } catch ( IOException e) {
+                    reporter.debug(e.getMessage());
                 }
-                System.err.println("-- end --");
-            } catch ( IOException e) {
-                System.err.println(e.getMessage());
             }
         }
 
@@ -468,9 +488,12 @@ public class ElasticSearchReporter extends ScheduledReporter {
             if (writer == null) {
                 throw new IllegalArgumentException("Method "+method+" does not allow output");
             }
-            OutputStreamWriter o = new OutputStreamWriter(System.err);
-            write(map, o);
-            o.flush();
+            if (debug) {
+                StringWriter o = new StringWriter();
+                write(map, o);
+                o.flush();
+                reporter.debug(o.toString());
+            }
             write(map, writer);
         }
 
@@ -506,11 +529,8 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
 
         public void openConection() throws IOException {
-            System.err.println("Closing before opening");
             close();
-            System.err.println(" opening");
             connection = openConnection(uri, method);
-            System.err.println(" opened");
             if ("PUT".equals(method) || "POST".equals(method)) {
                 writer = new OutputStreamWriter(connection.getOutputStream());
             }
@@ -520,7 +540,6 @@ public class ElasticSearchReporter extends ScheduledReporter {
             for( URL host : hosts) {
                 try {
                     URL url = new URL(host, uri);
-                    System.err.println("Trying to open "+url);
                     HttpURLConnection c = (HttpURLConnection) url.openConnection();
                     c.setRequestMethod(method);
                     c.setConnectTimeout(timeout);
@@ -528,13 +547,11 @@ public class ElasticSearchReporter extends ScheduledReporter {
                         c.setDoOutput(true);
                     }
                     c.connect();
-                    System.err.println("Opened "+method+" "+url);
                     return c;
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
-            System.err.println("Failed to open any hosts from "+hosts);
             throw new IllegalArgumentException("Unable to connect to any host from "+hosts.toString());
         }
 
