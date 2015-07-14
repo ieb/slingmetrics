@@ -27,6 +27,12 @@ import javax.annotation.Nullable;
  */
 public class ReturnCapture {
     
+    
+    public static <T> void markCaptureUsingHelper(@Nullable T o, @Nonnull String name, @Nonnull String helperName) {
+        System.err.println("Mark with method name "+o);
+        MetricsUtil.mark(getMetricNameUsingHelper(o,name, helperName));
+    }
+    
     public static <T> void markCapture(@Nullable T o, @Nonnull String name, @Nonnull String methodName) {
         System.err.println("Mark with method name "+o);
         MetricsUtil.mark(getMetricName(o,name, methodName));
@@ -37,21 +43,46 @@ public class ReturnCapture {
         MetricsUtil.mark(getMetricName(o,name));
     }
 
+    public static <T> void countCaptureUsingHelper(@Nullable T o, @Nonnull String name, @Nonnull String helperClass) {
+        System.err.println("Count with method name "+o);
+        MetricsUtil.count(getMetricNameUsingHelper(o, name, helperClass));
+    }
+
     public static <T> void countCapture(@Nullable T o, @Nonnull String name, @Nonnull String methodName) {
         System.err.println("Count with method name "+o);
-        MetricsUtil.count(name+getMetricName(o, name, methodName));
+        MetricsUtil.count(getMetricName(o, name, methodName));
     }
 
     public static <T> void countCapture(@Nullable T o, @Nonnull String name) {
         System.err.println("Count "+o);
-        MetricsUtil.count(name+getMetricName(o, name));
+        MetricsUtil.count(getMetricName(o, name));
     }
-    
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Nonnull
+    private static <T> String getMetricNameUsingHelper(@Nullable T o, @Nonnull String name, @Nonnull String helperClass) {
+        if (o != null) {
+            try {
+                Class<?> c = ReturnCapture.class.getClassLoader().loadClass(helperClass);
+                Object helper = c.newInstance();
+                if (helper instanceof MetricsNameHelper) {
+                    return name+((MetricsNameHelper) o).getName(o);
+                } else {
+                    return name+"_error_invalid_helper";
+                }
+            } catch ( Exception e) {
+                return name+"_"+e.getMessage();
+            }
+        }
+        return name+"_nullreturn";
+    }
+
+    @SuppressWarnings("unchecked")
     @Nonnull
     private static <T> String getMetricName(@Nullable T o, @Nonnull String name, @Nonnull String methodName) {
         if (o != null) {
             try {
-                Class<T> c = (Class<T>) o.getClass();
+                Class<T> c = ((Class<T>) o.getClass());
                 Method m = c.getDeclaredMethod(methodName); 
                 if (!m.isAccessible()) {
                     m.setAccessible(true);

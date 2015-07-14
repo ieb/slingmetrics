@@ -49,7 +49,6 @@ public class TimerAdapter extends AdviceAdapter {
     
     @Override
     protected void onMethodEnter() {
-        ReturnCapture.countCapture(timerName, timerName);
         mv.visitLdcInsn(timerName);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, "getTimer", METRICS_UTIL_GETMETER_DESC, false);
         // store the meter.

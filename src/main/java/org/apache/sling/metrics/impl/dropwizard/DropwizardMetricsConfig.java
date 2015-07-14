@@ -73,6 +73,7 @@ import com.esotericsoftware.yamlbeans.YamlReader;
  */
 public class DropwizardMetricsConfig {
 
+    private static final String HELPER_CLASS = "helperClass";
     private static final String TYPE = "type";
     private static final String KEY_METHOD = "keyMethod";
     /**
@@ -391,6 +392,14 @@ public class DropwizardMetricsConfig {
         return methodName;
     }
 
+    public String getHelperClassName(String className, String name, String desc) {
+        String methodName = getConfig(className, name, desc, HELPER_CLASS);
+        if (methodName == null) {
+            methodName = getConfig(className, name, HELPER_CLASS);            
+        }
+        return methodName;
+    }
+
     
     @Nonnull 
     public String getMetricName(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
@@ -401,6 +410,8 @@ public class DropwizardMetricsConfig {
             return DropwizardMetricsFactory.name(className, name+desc);
         }
     }
+    
+
 
     public boolean addMetrics(@Nonnull String className) {
         if (monitorClasses) {
@@ -417,6 +428,7 @@ public class DropwizardMetricsConfig {
     public boolean dumpClass(String className) {
         return TRUE_OPTION.equals(getConfig(className,DUMP_CLASS));
     }
+
 
 
 

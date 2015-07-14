@@ -75,13 +75,13 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
             woven = true;
             System.err.println("Adding Return Counter to "+className+" "+name);
-            return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), false);                        
+            return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), metricsConfig.getHelperClassName(className, name, desc), false);                        
         } else if (metricsConfig.addReturnMark(className, name, desc)) {
             activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
             woven = true;
             System.err.println("Adding Return Meter to "+className+" "+name);
-            return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), true);                        
+            return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), metricsConfig.getHelperClassName(className, name, desc), true);                        
         }
         System.err.println("Nothing for  "+className+" "+name);
 

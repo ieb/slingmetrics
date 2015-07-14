@@ -98,11 +98,37 @@ This method has a signature of
     
 Which can be discovered by looking at the byte code for the class, mentally converting the signature into a byte code description or using the \_monitor\_class option to log the methods.
 
+Instrumenting return values
+---------------------------
+
+At times it becomes necessary to monitor activity on a single method, segmenting the metrics by some aspect of the return object. This can be achieved using the count\_return or meter\_return values.
+   
+    org.apache.sling.servlets.resolver.internal.SlingServletResolver:
+      resolveServletInternal:
+        type: meter_return
+        keyMethod: <methodname>
+        helperClass: <helperClassName>
+     
+A type of meter\_return will create a meter metric on the return value. A type of count\_return will create a counter metric on the return value. If the keyMethod is specified a method of that name with the signature String <methodname>() on the return object will be used to get the name of the metric. If helperClass is specified, a class of that name, implementing the MetricsNameHelper interface will be instanced, and the MetricsNameHelper.getName(T returnObject) will be called to get the name of the metric. If the helper class is not available, the metric will be given a suitable name. Helper classes should be implemented in independent bundles loaded as soon as possible to ensure no statistics are missed. e.g., to meter Sling Component usage,
+
+    org.apache.sling.servlets.resolver.internal.SlingServletResolver:
+      resolveServletInternal:
+        type: meter_return
+        helperClass: org.apache.sling.metrics.helpers.ServletNameHelper
+        
+To meter resource resolution.
+    
+    org.apache.sling.resourceresolver.impl.ResourceResolverImpl:
+      getResourceInternal:
+        type: meter_return 
+        keyMethod: getResourceType
+
+
       
 Instrumentation types
 ---------------------
 
-Timers time the duration of the method call, calculating the following metics.
+Timers time the duration of the method call, calculating the following metrics.
 
     org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
              count = 1
