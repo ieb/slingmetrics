@@ -21,18 +21,14 @@ package org.apache.sling.metrics.impl;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
-import javax.annotation.Nonnull;
-
+import org.apache.sling.metrics.api.LogServiceHolder;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 
@@ -50,7 +46,7 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
     private static final String OBJECT_INTERNAL_NAME = "java/lang/Object";
 
     public static final Set<String> EXCLUDE_INTERFACE = new HashSet<String>();
-    
+
     static {
         // exclude interfaces that would be chosen instead of java/lang/Object
         EXCLUDE_INTERFACE.add("java/io/Serializable");
@@ -65,16 +61,20 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
 
     private Map<String, OsgiClass2> classes = new HashMap<String, OsgiClass2>();
 
-    public OSGiFriendlyClassWriter(ClassReader arg0, int arg1, ClassLoader loader) {
-        super(arg0, arg1);
+    public LogServiceHolder logServiceHolder;
 
+    public OSGiFriendlyClassWriter(ClassReader arg0, int arg1, ClassLoader loader,
+            LogServiceHolder logServiceHolder) {
+        super(arg0, arg1);
         this.loader = loader;
+        this.logServiceHolder = logServiceHolder;
     }
 
-    public OSGiFriendlyClassWriter(int arg0, ClassLoader loader, String className, boolean dumpClass) {
+    public OSGiFriendlyClassWriter(int arg0, ClassLoader loader, LogServiceHolder logServiceHolder,
+            String className, boolean dumpClass) {
         super(arg0);
-
         this.loader = loader;
+        this.logServiceHolder = logServiceHolder;
         this.className = className;
         this.dumpClass = dumpClass;
     }
@@ -87,7 +87,7 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
                 FileOutputStream fo = new FileOutputStream(className + ".class");
                 fo.write(b);
                 fo.close();
-                System.err.println("Written " + b.length + " to " + className + ".class");
+                logServiceHolder.info("Written ", b.length, " to ", className, ".class");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -111,7 +111,7 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
         if (classA.equals(OBJECT_INTERNAL_NAME) || classB.equals(OBJECT_INTERNAL_NAME)) {
             return OBJECT_INTERNAL_NAME;
         }
-        OsgiClass2 oClassB = new OsgiClass2(classB, classB, loader, true);
+        OsgiClass2 oClassB = new OsgiClass2(classB, classB, loader, logServiceHolder, true);
         OsgiClass2 oClassA = oClassB.get(classA, classA);
         return oClassA.getCommonSuperClass(classA, classB);
     }
@@ -131,14 +131,17 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
 
         private boolean breakOnShared;
 
-        public OsgiClass2(String initialClass, String className, ClassLoader loader,
+        private LogServiceHolder logServiceHolder;
+
+        public OsgiClass2(String initialClass, String className, ClassLoader loader, LogServiceHolder logServiceHolder,
                 boolean breakOnShared) {
-            this(initialClass, className, loader, breakOnShared,
+            this(initialClass, className, loader, logServiceHolder,  breakOnShared,
                 new LinkedHashMap<String, OsgiClass2>(), new LinkedHashSet<String>());
         }
 
-        public OsgiClass2(String initialClass, String className, ClassLoader loader,
+        public OsgiClass2(String initialClass, String className, ClassLoader loader, LogServiceHolder logServiceHolder,
                 boolean breakOnShared, Map<String, OsgiClass2> common, Set<String> shared) {
+            this.logServiceHolder = logServiceHolder;
             this.breakOnShared = breakOnShared;
             this.common = common;
             common.put(className, this);
@@ -148,13 +151,14 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
             if (!abort()) {
                 load(className);
             } else {
-                System.err.println("Loading aborted match found " + className);
+                logServiceHolder.debug("Loading aborted match found ",className);
             }
         }
 
         public String getCommonSuperClass(String classA, String classB) {
             shared.add(OBJECT_INTERNAL_NAME);
-            System.err.println(shared.iterator().next() + " is shared by "+classA+" and "+classB);
+            logServiceHolder.debug(shared.iterator().next(), " is shared by ", classA, " and ",
+                classB);
             return shared.iterator().next();
         }
 
@@ -180,10 +184,9 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
                     }
                 }
             } else {
-                System.err.println("No Stream for " + className);
+                logServiceHolder.warn("No Stream for ", className);
             }
         }
-
 
         private void addInterfaces(String[] interfaces) {
             if (interfaces != null) {
@@ -208,7 +211,7 @@ public final class OSGiFriendlyClassWriter extends ClassWriter {
         public OsgiClass2 get(String initialClass, String className) {
             OsgiClass2 oc = common.get(className);
             if (oc == null) {
-                oc = new OsgiClass2(initialClass, className, classLoader, breakOnShared, common,
+                oc = new OsgiClass2(initialClass, className, classLoader, logServiceHolder, breakOnShared, common,
                     shared);
                 common.put(className, oc);
             } else if (!oc.initialClass.equals(initialClass)) {

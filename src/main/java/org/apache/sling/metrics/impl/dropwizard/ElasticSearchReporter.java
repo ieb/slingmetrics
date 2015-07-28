@@ -18,7 +18,6 @@
 package org.apache.sling.metrics.impl.dropwizard;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -26,7 +25,6 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.Format;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,8 +36,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.sling.metrics.impl.MetricsActivator;
-import org.osgi.service.log.LogService;
+import org.apache.sling.metrics.api.LogServiceHolder;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -153,7 +150,7 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
         private int maxCommands = 1000;
 
-        private MetricsActivator activator;
+        private LogServiceHolder logServiceHolder;
 
         public Builder(MetricRegistry registry) {
             this.registry = registry;
@@ -203,14 +200,14 @@ public class ElasticSearchReporter extends ScheduledReporter {
             this.maxCommands = maxCommands;
             return this;
         }
-        public Builder withActivator(MetricsActivator activator) {
-            this.activator = activator;
+        public Builder withLogServiceHolder(LogServiceHolder logServiceHolder) {
+            this.logServiceHolder = logServiceHolder;
             return this;
         }
 
 
         public ElasticSearchReporter build() throws IOException {
-            return new ElasticSearchReporter(activator, registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
+            return new ElasticSearchReporter(logServiceHolder, registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
         }
 
 
@@ -236,14 +233,14 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
     private List<URL> hosts;
 
-    private MetricsActivator activator;
+    private LogServiceHolder logServiceHolder;
 
-    protected ElasticSearchReporter(@Nullable MetricsActivator activator,
+    protected ElasticSearchReporter(@Nullable LogServiceHolder logServiceHolder,
             @Nonnull MetricRegistry registry, @Nonnull String name, @Nonnull MetricFilter filter,
            @Nonnull TimeUnit rateUnit, @Nonnull TimeUnit durationUnit, @Nonnull String customerId, @Nonnull String instanceId,
            @Nonnull List<URL> hosts, int timeout, int maxCommands) throws IOException {
         super(registry, name, filter, rateUnit, durationUnit);
-        this.activator = activator;
+        this.logServiceHolder = logServiceHolder;
         this.timeout = timeout;
         this.customerId = customerId;
         this.instanceId = instanceId;
@@ -296,14 +293,14 @@ public class ElasticSearchReporter extends ScheduledReporter {
     
 
     private void debug(String message) {
-        if (activator != null) {
-            activator.log(LogService.LOG_DEBUG, message);
+        if (logServiceHolder != null) {
+            logServiceHolder.debug(message);
         }
     }
     
     private void info(String message) {
-        if (activator != null) {
-            activator.log(LogService.LOG_INFO, message);
+        if (logServiceHolder != null) {
+            logServiceHolder.info(message);
         }
     }
 

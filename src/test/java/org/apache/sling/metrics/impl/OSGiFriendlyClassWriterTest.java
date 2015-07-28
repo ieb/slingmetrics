@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +32,7 @@ import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.SyntheticResource;
+import org.apache.sling.metrics.api.LogServiceHolder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,7 +40,7 @@ import org.objectweb.asm.ClassWriter;
 import org.osgi.framework.ServiceRegistration;
 
 
-public class OSGiFriendlyClassWriterTest {
+public class OSGiFriendlyClassWriterTest implements LogServiceHolder {
     
     private OSGiFriendlyClassWriter classWriter;
     private TestClassWriter standardClassWriter;
@@ -60,7 +62,7 @@ public class OSGiFriendlyClassWriterTest {
     public void before() {
         standardClassWriter = new TestClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
         classWriter = new OSGiFriendlyClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES,
-            this.getClass().getClassLoader(), OSGiFriendlyClassWriterTest.class.getName(), false);
+            this.getClass().getClassLoader(), this, OSGiFriendlyClassWriterTest.class.getName(), false);
     }
     @Test
     public void testMap() {
@@ -98,6 +100,21 @@ public class OSGiFriendlyClassWriterTest {
         Assert.assertEquals("Osgi doesnt match standard", osgi, standard);
         Assert.assertEquals("Osgi doesnt match reverse resolution", osgi, osgiR);
     }
-    
+    @Override
+    public void warn(Object... message) {
+        System.err.println(Arrays.toString(message));
+    }
+    @Override
+    public void error(Object... message) {
+        System.err.println(Arrays.toString(message));
+    }
+    @Override
+    public void info(Object... message) {
+        System.err.println(Arrays.toString(message));
+    }
+    @Override
+    public void debug(Object... message) {
+        //System.err.println(Arrays.toString(message));
+    }
 
 }

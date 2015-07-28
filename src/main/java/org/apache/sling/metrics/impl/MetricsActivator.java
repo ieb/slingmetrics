@@ -17,12 +17,17 @@
  */
 package org.apache.sling.metrics.impl;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.annotation.Nonnull;
 
+import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsFactory;
+import org.apache.sling.metrics.api.MetricsUtil;
+import org.apache.sling.metrics.api.ReturnCapture;
 import org.apache.sling.metrics.impl.dropwizard.DropwizardMetricsConfig;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -34,7 +39,7 @@ import org.osgi.util.tracker.ServiceTracker;
 
 import com.codahale.metrics.MetricRegistry;
 
-public class MetricsActivator implements BundleActivator {
+public class MetricsActivator implements BundleActivator, LogServiceHolder {
 
     private ServiceRegistration<?> weavingHookService;
     private ServiceRegistration<?> metricsFactoryService;
@@ -42,13 +47,17 @@ public class MetricsActivator implements BundleActivator {
     private DropwizardMetricsConfig metricsConfig;
     private List<LogService> logServices = new CopyOnWriteArrayList<LogService>();
     private LogServiceTracker logServiceTracker;
+    private boolean debugEnabled;
 
 
     @Override
     public synchronized void start(BundleContext context) throws Exception {
         logServiceTracker = new LogServiceTracker(context);
         logServiceTracker.open();
+        ReturnCapture.setLogServiceHolder(this);
+        MetricsUtil.setLogServiceHolder(this);
         metricsConfig = new DropwizardMetricsConfig(this);
+        debugEnabled = metricsConfig.debugEnabled();
         WeavingHook weavingHook = new MetricsWeavingHook(context, this);
         weavingHookService = context.registerService(WeavingHook.class.getName(), weavingHook, null);
         metricsFactoryService = context.registerService(MetricsFactory.class.getName(), metricsConfig.getMetricsFactory(), null);
@@ -63,6 +72,42 @@ public class MetricsActivator implements BundleActivator {
         metricsRegistryService.unregister();
         metricsConfig.close();
         logServiceTracker.close();
+    }
+    
+    @Override
+    public void debug(Object... message) {
+        if (debugEnabled) {
+            log(LogService.LOG_INFO, concat(message));
+        }
+    }
+
+    @Override
+    public void info(Object... message) {
+        log(LogService.LOG_INFO, concat(message));
+    }
+
+    @Override
+    public void warn(Object... message) {
+        log(LogService.LOG_WARNING, concat(message));
+    }
+
+    @Override
+    public void error(Object... message) {
+        log(LogService.LOG_ERROR, concat(message));
+    }
+
+    private String concat(Object[] message) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        for(Object o : message) {
+            if (o instanceof Throwable) {
+                ((Throwable) o).printStackTrace(pw);
+            } else {
+                pw.append(String.valueOf(o));
+            }
+        }
+        pw.flush();
+        return sw.toString();
     }
 
     public void log(int level, @Nonnull String message) {

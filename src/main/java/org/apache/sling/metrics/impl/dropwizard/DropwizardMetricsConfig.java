@@ -33,10 +33,9 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsUtil;
-import org.apache.sling.metrics.impl.MetricsActivator;
 import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
-import org.osgi.service.log.LogService;
 
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.JmxReporter;
@@ -92,6 +91,7 @@ public class DropwizardMetricsConfig {
     private static final String GRAPHITE_OPT = "graphite";
     private static final String SERVLET_OPT = "servlet";
     private static final String REPORTERS_CONFIG = "reporters";
+    private static final String DEBUG_CONFIG = "debug";
     private static final String DUMP_CONFIG = "dump";
     private static final String DUMPFILE_OPT = "output";
     private static final String DUMP_INCLUDE = "include";
@@ -112,7 +112,7 @@ public class DropwizardMetricsConfig {
     private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
-    private MetricsActivator activator;
+    private LogServiceHolder logServiceHolder;
     private MetricRegistry metricsRegistry = new MetricRegistry();
     private boolean monitorClasses;
     private FileWriter dumpFile;
@@ -122,8 +122,8 @@ public class DropwizardMetricsConfig {
     private List<Pattern> dumpIncludes = new ArrayList<Pattern>();
     private List<Pattern> dumpExcludes = new ArrayList<Pattern>();
 
-    public DropwizardMetricsConfig(@Nonnull MetricsActivator activator) {
-        this.activator = activator;
+    public DropwizardMetricsConfig(@Nonnull LogServiceHolder logServiceHolder) {
+        this.logServiceHolder = logServiceHolder;
         String metricsConfigProperties = System.getProperty(METRICS_CONFIG_PROP, METRICS_CONFIG_FILENAME);
         load(metricsConfigProperties);
         monitorClasses = TRUE_OPTION.equals(getConfig(GLOBAL_CONFIG,MONITOR_OPT));
@@ -142,15 +142,15 @@ public class DropwizardMetricsConfig {
     private void configureDump() {
         if (configExists(GLOBAL_CONFIG,DUMP_CONFIG)) {
             try {
-                activator.log(LogService.LOG_INFO, " Dumping Classes to "+getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
+                logServiceHolder.info(" Dumping Classes to ",getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
                 dumpFile = new FileWriter(getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
                 dumpIncludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_INCLUDE));
                 dumpExcludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_EXCLUDE));                
             } catch (IOException e) {
-                activator.log(LogService.LOG_ERROR, "Cant open dumpfile "+getConfig(GLOBAL_CONFIG,DUMP_CONFIG,  DUMPFILE_OPT));
+                logServiceHolder.info("Cant open dumpfile ",getConfig(GLOBAL_CONFIG,DUMP_CONFIG,  DUMPFILE_OPT));
             }            
         } else {
-            activator.log(LogService.LOG_INFO, "Not Dumping Classes");
+            logServiceHolder.info("Not Dumping Classes");
 
         }
     }
@@ -224,7 +224,7 @@ public class DropwizardMetricsConfig {
                 if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT)) {
                     b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
                 }
-                b.withActivator(activator);
+                b.withLogServiceHolder(logServiceHolder);
                 ElasticSearchReporter r = b.build();
                 int reportingPeriod = 60;
                 if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ED_PERIOD_OPT)) {
@@ -232,10 +232,9 @@ public class DropwizardMetricsConfig {
                 }
                 r.start(reportingPeriod, TimeUnit.SECONDS);
                 reporters.add(r);
-                System.err.println("Registered Elastic Search Reporter, reporting interval "+reportingPeriod);
+                logServiceHolder.info("Registered Elastic Search Reporter, reporting interval ",reportingPeriod);
             } catch (Exception e) {
-                e.printStackTrace();
-                activator.log(LogService.LOG_ERROR, "Unable to create elastic serach reportoer cause:"+e.getMessage());
+                logServiceHolder.error( "Unable to create elastic serach reportoer cause:",e);
             }
         }
     }
@@ -245,7 +244,7 @@ public class DropwizardMetricsConfig {
             JmxReporter jmxReporter = JmxReporter.forRegistry(metricsRegistry).build();
             jmxReporter.start();
             reporters.push(jmxReporter);
-            System.err.println("Registered JMX reporter");
+            logServiceHolder.info("Registered JMX reporter");
         }
     }
 
@@ -258,7 +257,7 @@ public class DropwizardMetricsConfig {
                     t = 30;
                 }
             } catch (NumberFormatException e) {
-                activator.log(LogService.LOG_WARNING, "Console period not recognised, useing default of 30 seconds");
+                logServiceHolder.warn("Console period not recognised, useing default of 30 seconds",e);
             }
             ConsoleReporter reporter = ConsoleReporter.forRegistry(metricsRegistry)
                     .convertRatesTo(TimeUnit.SECONDS)
@@ -287,10 +286,10 @@ public class DropwizardMetricsConfig {
             configMap = (Map<String, Object>) yamlReader.read();
             yamlReader.close();
         } catch (Exception e) {
-            activator.log(LogService.LOG_ERROR, "Unable to read "+metricsConfigYaml+" cause: "+e.getMessage());
+            logServiceHolder.error("Unable to read ",metricsConfigYaml," cause: ",e.getMessage());
             e.printStackTrace();
         }
-        activator.log(LogService.LOG_INFO, "Metrics Config :"+configMap);        
+        logServiceHolder.info("Metrics Config :",configMap);
     }
     public void close() {
         MetricsUtil.setFactory(null);
@@ -298,7 +297,7 @@ public class DropwizardMetricsConfig {
             try {
                 dumpFile.close();
             } catch (IOException e) {
-                activator.log(LogService.LOG_DEBUG, e.getMessage());
+                logServiceHolder.debug(e);
             }
         }
             
@@ -306,13 +305,13 @@ public class DropwizardMetricsConfig {
             try {
                 c.close();
             } catch (IOException e) {
-                activator.log(LogService.LOG_DEBUG, e.getMessage());
+                logServiceHolder.debug(e);
             }
         }
     }
     public boolean addMethodTimer(@Nonnull  String className, @Nonnull String name, @Nonnull String desc) {
         if (TRUE_OPTION.equals(getConfig(className,MONITOR_CLASS_OPT))) {
-            activator.log(LogService.LOG_INFO, "Checking Method: "+className + "." + name + desc);
+            logServiceHolder.info("Checking Method: ",className,".",name,desc);
         }
         dumpConfig(className, name, desc);
         return TIMER_OPTION.equals(getConfig(className, name)) || TIMER_OPTION.equals(getConfig(className, name, desc));
@@ -345,7 +344,7 @@ public class DropwizardMetricsConfig {
                     lastDesc = desc;
                 }     
             } catch (IOException e) {
-                activator.log(LogService.LOG_DEBUG, e.getMessage());
+                logServiceHolder.warn("Unable to dump class config",e);
             }
         }
     }
@@ -419,11 +418,11 @@ public class DropwizardMetricsConfig {
 
     public boolean addMetrics(@Nonnull String className) {
         if (monitorClasses) {
-            activator.log(LogService.LOG_INFO, "Loading Class: "+className);
+            logServiceHolder.info("Loading Class: ",className);
         }
         if (includeInDump(className)) {
             // dump for all classes except asm classes, as if you try and instrument asm classes, you end up in recursion.
-            activator.log(LogService.LOG_INFO, "Dumping Class: "+className);
+            logServiceHolder.info("Dumping Class: ",className);
             return true;
         }
         return configExists(className);
@@ -454,33 +453,31 @@ public class DropwizardMetricsConfig {
 
     private void logConfigNotUsed(String className, String methodName, String option, List<String[]> methods) {
         if (!VALID_OPTIONS.contains(option) ) {
-            activator.log(LogService.LOG_WARNING, "Config Option not valid for "+className+" "+methodName+" "+option+" should be one of "+VALID_OPTIONS);
+            logServiceHolder.warn("Config Option not valid for ",className," ",methodName," ",option," should be one of ",VALID_OPTIONS);
         }
         for(String[] m : methods) {
             if ( methodName.equals(m[0])) {
                 break;
             }
         }
-        activator.log(LogService.LOG_WARNING, "Unused Config for "+className+" "+methodName+" "+option);
+        logServiceHolder.warn("Unused Config for ",className," ",methodName," "+option);
     }
 
     private void logConfigNotUsed(String className, String methodName, String description, Object options, List<String[]> methods) {
         if (options instanceof String) {
             if (!VALID_OPTIONS.contains((String) options) ) {
-                activator.log(LogService.LOG_WARNING, "Config Option not valid for "+className+" "+methodName+" "+options+" should be one of "+VALID_OPTIONS);
-            }            
+                logServiceHolder.info("Config Option not valid for ",className," ",methodName," ",options," should be one of ",VALID_OPTIONS);
+            }
         }
         for(String[] m : methods) {
             if ( methodName.equals(m[0]) && description.equals(m[1])) {
                 break;
             }
         }
-        activator.log(LogService.LOG_WARNING, "Unused Config for "+className+" "+methodName+" "+options);
+        logServiceHolder.warn( "Unused Config for ",className," ",methodName," ",options);
     }
 
-
-
-
-
- 
+    public boolean debugEnabled() {
+        return TRUE_OPTION.equals(getConfig(GLOBAL_CONFIG,DEBUG_CONFIG));
+    }
 }

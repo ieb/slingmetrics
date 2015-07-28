@@ -29,6 +29,7 @@ import aQute.bnd.annotation.ProviderType;
 public class MetricsUtil {
 
     private static MetricsFactory factory = MetricsFactory.DEFAULT;
+    private static LogServiceHolder logServiceHolder;
 
     /**
      * @param factory the current metrics factory in use. If set to null a
@@ -41,6 +42,7 @@ public class MetricsUtil {
             MetricsUtil.factory = factory;
         }
     }
+    
 
     /**
      * @param name name of the timer to start timing with, on return the timer will have started.
@@ -67,6 +69,11 @@ public class MetricsUtil {
     @Nonnull
     public static void mark(@Nonnull String name) {
         factory.meter(name).mark();
+    }
+
+
+    public static void setLogServiceHolder(LogServiceHolder logServiceHolder) {
+        MetricsUtil.logServiceHolder = logServiceHolder;
     }
 
 }

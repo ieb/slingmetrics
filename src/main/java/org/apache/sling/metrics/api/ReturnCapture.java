@@ -28,33 +28,36 @@ import javax.annotation.Nullable;
 public class ReturnCapture {
     
     
+    private static LogServiceHolder logServiceHolder;
+
     public static <T> void markCaptureUsingHelper(@Nullable T o, @Nonnull String name, @Nonnull String helperName) {
-        System.err.println("Mark with method name "+o);
+        logServiceHolder.debug("Mark with method name "+o);
         MetricsUtil.mark(getMetricNameUsingHelper(o,name, helperName));
     }
     
     public static <T> void markCapture(@Nullable T o, @Nonnull String name, @Nonnull String methodName) {
-        System.err.println("Mark with method name "+o);
+        logServiceHolder.debug("Mark with method name ",o);
         MetricsUtil.mark(getMetricName(o,name, methodName));
     }
 
     public static <T> void markCapture(@Nullable T o, @Nonnull String name) {
-        System.err.println("Marking "+o);
+        logServiceHolder.debug("Marking ",o);
         MetricsUtil.mark(getMetricName(o,name));
     }
 
     public static <T> void countCaptureUsingHelper(@Nullable T o, @Nonnull String name, @Nonnull String helperClass) {
-        System.err.println("Count with method name "+o);
+        logServiceHolder.debug("Count with method name ",o);
         MetricsUtil.count(getMetricNameUsingHelper(o, name, helperClass));
     }
 
     public static <T> void countCapture(@Nullable T o, @Nonnull String name, @Nonnull String methodName) {
-        System.err.println("Count with method name "+o);
+        logServiceHolder.debug("Count with method name ",o);
         MetricsUtil.count(getMetricName(o, name, methodName));
     }
 
     public static <T> void countCapture(@Nullable T o, @Nonnull String name) {
-        System.err.println("Count "+o);
+        
+        logServiceHolder.debug("Count ",o);
         MetricsUtil.count(getMetricName(o, name));
     }
 
@@ -71,7 +74,8 @@ public class ReturnCapture {
                     return name+"_error_invalid_helper";
                 }
             } catch ( Exception e) {
-                return name+"_"+e.getMessage();
+                logServiceHolder.warn("Unable to get metric name helper class ",helperClass," with object ",o.getClass()," cause:",e.getMessage());
+                return name+"_error_invalid_helper";
             }
         }
         return name+"_nullreturn";
@@ -89,7 +93,8 @@ public class ReturnCapture {
                 }
                 return name+String.valueOf(m.invoke(o));
             } catch (Exception e) {
-                return name+"_"+e.getMessage();
+                logServiceHolder.warn( "Unable to get metric name from method ",methodName," on object ",o.getClass()," cause:",e.getMessage());
+                return name+"_default";
             }
         }
         return name+"_nullreturn";
@@ -101,6 +106,10 @@ public class ReturnCapture {
                 return name+String.valueOf(o);
         }
         return name+"_nullreturn";
+    }
+
+    public static void setLogServiceHolder(LogServiceHolder logServiceHolder) {
+        ReturnCapture.logServiceHolder = logServiceHolder;
     }
 
 }

@@ -23,31 +23,36 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.impl.dropwizard.DropwizardMetricsConfig;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.osgi.service.log.LogService;
 
 /**
- * This class implements an ASM ClassVisitor which puts the appropriate ThreadContextClassloader
- * calls around applicable method invocations. It does the actual bytecode weaving.
+ * This class implements an ASM ClassVisitor which puts the appropriate
+ * ThreadContextClassloader calls around applicable method invocations. It does
+ * the actual bytecode weaving.
  */
 public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
 
-
     private DropwizardMetricsConfig metricsConfig;
+
     private boolean woven;
+
     private String className;
-    private MetricsActivator activator;
+
+    private LogServiceHolder logServiceHolder;
+
     private List<String[]> methods = new ArrayList<String[]>();
 
-
-    public MetricsClassVisitor(@Nonnull ClassVisitor cv, @Nonnull String className, @Nonnull DropwizardMetricsConfig metricsConfig, @Nonnull MetricsActivator activator) {
+    public MetricsClassVisitor(@Nonnull ClassVisitor cv, @Nonnull String className,
+            @Nonnull DropwizardMetricsConfig metricsConfig,
+            @Nonnull LogServiceHolder logServiceHolder) {
         super(Opcodes.ASM4, cv);
         this.className = className;
         this.metricsConfig = metricsConfig;
-        this.activator = activator;
+        this.logServiceHolder = logServiceHolder;
     }
 
     public boolean isWoven() {
@@ -59,48 +64,51 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
     public MethodVisitor visitMethod(int access, @Nonnull String name, @Nonnull String desc,
             String signature, String[] exceptions) {
         try {
-            methods.add(new String[] { name, desc});
-            if ( metricsConfig.addMethodTimer(className, name, desc) ) {
-                activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
+            methods.add(new String[] { name, desc });
+            if (metricsConfig.addMethodTimer(className, name, desc)) {
+                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new TimerAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc));            
+                return new TimerAdapter(mv, access, name, desc, metricsConfig.getMetricName(
+                    className, name, desc));
             } else if (metricsConfig.addCount(className, name, desc)) {
-                activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
+                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), "count");                        
+                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(
+                    className, name, desc), "count");
             } else if (metricsConfig.addMark(className, name, desc)) {
-                activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
+                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), "mark");                        
+                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(
+                    className, name, desc), "mark");
             } else if (metricsConfig.addReturnCount(className, name, desc)) {
-                activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
+                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                System.err.println("Adding Return Counter to "+className+" "+name);
-                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), metricsConfig.getHelperClassName(className, name, desc), false);                        
+                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(
+                    className, name, desc),
+                    metricsConfig.getReturnKeyMethod(className, name, desc),
+                    metricsConfig.getHelperClassName(className, name, desc), false);
             } else if (metricsConfig.addReturnMark(className, name, desc)) {
-                activator.log(LogService.LOG_INFO, "Adding Metrics to method "+className+" "+name);
+                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                System.err.println("Adding Return Meter to "+className+" "+name);
-                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(className, name, desc), metricsConfig.getReturnKeyMethod(className, name, desc), metricsConfig.getHelperClassName(className, name, desc), true);                        
+                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(
+                    className, name, desc),
+                    metricsConfig.getReturnKeyMethod(className, name, desc),
+                    metricsConfig.getHelperClassName(className, name, desc), true);
             }
-            System.err.println("Nothing for  "+className+" "+name);
-    
-            activator.log(LogService.LOG_INFO, "Not Adding Metrics to method "+className+" "+name);
-        } catch ( Exception e) {
-            e.printStackTrace();
+            logServiceHolder.debug("Not Adding Metrics to method ", className, " ", name);
+        } catch (Exception e) {
+            logServiceHolder.error("Failed Not Adding Metrics to method ", className, " ", e);
         }
         return super.visitMethod(access, name, desc, signature, exceptions);
     }
 
-
-
     public boolean additionalImportRequired() {
-        return woven ;
+        return woven;
     }
 
     public void finish() {

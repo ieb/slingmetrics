@@ -31,8 +31,9 @@ Monitoring:
 
     global:
       monitor: true
+      debug: true
 
-With global monitoring on the instance will log at info level the name of every class encountered.
+With global monitoring on the instance will log at info level the name of every class encountered. With debug, the metrics bundle will log debug messages at info level avoiding needing to reconfigure the logging service or wait for it to be available.
 
 Dump File:
 

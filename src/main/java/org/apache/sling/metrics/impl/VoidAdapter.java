@@ -23,7 +23,6 @@ import org.apache.sling.metrics.api.MetricsUtil;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.AdviceAdapter;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 /**
  * Adapts method calls wrapping the byte code of the method with calls to a meter.

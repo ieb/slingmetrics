@@ -20,14 +20,11 @@ package org.apache.sling.metrics.impl;
 import javax.annotation.Nonnull;
 
 import org.apache.sling.metrics.api.MetricsUtil;
-import org.apache.sling.metrics.api.ReturnCapture;
 import org.apache.sling.metrics.api.TimerContext;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.AdviceAdapter;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 import com.codahale.metrics.Timer.Context;
 

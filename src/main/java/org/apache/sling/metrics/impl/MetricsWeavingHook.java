@@ -30,8 +30,8 @@ import org.osgi.framework.hooks.weaving.WovenClass;
 import org.osgi.service.log.LogService;
 
 public class MetricsWeavingHook implements WeavingHook {
-    private final String addedImport;
-    private final MetricsActivator activator;
+    private String addedImport;
+    private MetricsActivator activator;
     private String bundleSymbolicName;
 
     MetricsWeavingHook(@Nonnull BundleContext context, @Nonnull MetricsActivator dwActivator) {
@@ -53,7 +53,7 @@ public class MetricsWeavingHook implements WeavingHook {
             try {
                 ClassReader cr = new ClassReader(wovenClass.getBytes());
                 ClassWriter cw = new OSGiFriendlyClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES,
-                    wovenClass.getBundleWiring().getClassLoader(), wovenClass.getClassName(), activator.getMetricsConfig().dumpClass(wovenClass.getClassName()));
+                    wovenClass.getBundleWiring().getClassLoader(), activator, wovenClass.getClassName(), activator.getMetricsConfig().dumpClass(wovenClass.getClassName()));
     	        MetricsClassVisitor mcv = new MetricsClassVisitor(cw, wovenClass.getClassName(), activator.getMetricsConfig(), activator);
     	        cr.accept(mcv, ClassReader.SKIP_FRAMES);
     	        if (mcv.isWoven()) {

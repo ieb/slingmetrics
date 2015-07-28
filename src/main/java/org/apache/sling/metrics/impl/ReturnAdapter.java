@@ -17,7 +17,6 @@
  */
 package org.apache.sling.metrics.impl;
 
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -29,88 +28,92 @@ import org.objectweb.asm.commons.AdviceAdapter;
 public class ReturnAdapter extends AdviceAdapter {
 
     private static final String RETURN_CAPTURE_CL = ReturnCapture.class.getName().replace('.', '/');
+
     private static final String RETURN_CAPTURE_DESC = "(Ljava/lang/Object;Ljava/lang/String;)V";
+
     private static final String RETURN_METHOD_CAPTURE_DESC = "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V";
+
     private static final String COUNT_CAPTURE = "countCapture";
+
     private static final String MARK_CAPTURE = "markCapture";
+
     private static final String COUNT_CAPTURE_USING_HELPER = "countCaptureUsingHelper";
+
     private static final String MARK_CAPTURE_USING_HELPER = "markCaptureUsingHelper";
-    
 
     private String timerName;
+
     private String keyMethodName;
+
     private String helperClassName;
+
     private boolean mark;
-    
 
     public ReturnAdapter(@Nonnull MethodVisitor mv, int access, @Nonnull String name,
-            @Nonnull String desc, @Nonnull String timerName, @Nullable String keyMethodName, @Nullable String helperClassName,
-            boolean mark) {
+            @Nonnull String desc, @Nonnull String timerName, @Nullable String keyMethodName,
+            @Nullable String helperClassName, boolean mark) {
         super(Opcodes.ASM4, mv, access, name, desc);
         this.helperClassName = helperClassName;
         this.keyMethodName = keyMethodName;
         this.timerName = name;
         this.mark = mark;
-        System.err.println(" Return Adapter on "+name+" "+desc);
     }
-    
 
     @Override
     protected void onMethodExit(int opcode) {
-        switch(opcode) {
+        switch (opcode) {
             case Opcodes.IRETURN:
             case Opcodes.LRETURN:
             case Opcodes.FRETURN:
             case Opcodes.DRETURN:
             case Opcodes.ARETURN:
-                
-               try {
-                   addReturnMetric(opcode);
-               } catch (Exception e) {
-                   e.printStackTrace();
-               }
+
+                try {
+                    addReturnMetric(opcode);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
         }
         super.onMethodExit(opcode);
     }
-    
-    
+
     public void addReturnMetric(int opcode) {
-        
-        System.err.println(" Return value being called ");
-        // make a copt of the top of the stack so the return value can ba passed to the resource
+        // make a copt of the top of the stack so the return value can ba passed
+        // to the resource
         // Class.record(returnValue, timerName);
         if (Opcodes.DRETURN == opcode || Opcodes.LRETURN == opcode) {
-            System.err.println("DUP2");
-            mv.visitInsn(Opcodes.DUP2);            
+            mv.visitInsn(Opcodes.DUP2);
         } else {
-            System.err.println("DUP");
             mv.visitInsn(Opcodes.DUP);
         }
-        
-        System.err.println("Name is "+keyMethodName);
-        
         if (helperClassName != null) {
             mv.visitLdcInsn(timerName);
             mv.visitLdcInsn(helperClassName);
             if (mark) {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, MARK_CAPTURE_USING_HELPER, RETURN_METHOD_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL,
+                    MARK_CAPTURE_USING_HELPER, RETURN_METHOD_CAPTURE_DESC, false);
             } else {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, COUNT_CAPTURE_USING_HELPER, RETURN_METHOD_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL,
+                    COUNT_CAPTURE_USING_HELPER, RETURN_METHOD_CAPTURE_DESC, false);
             }
-        } else if (keyMethodName != null ) {
+        } else if (keyMethodName != null) {
             mv.visitLdcInsn(timerName);
             mv.visitLdcInsn(keyMethodName);
             if (mark) {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, MARK_CAPTURE, RETURN_METHOD_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, MARK_CAPTURE,
+                    RETURN_METHOD_CAPTURE_DESC, false);
             } else {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, COUNT_CAPTURE, RETURN_METHOD_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, COUNT_CAPTURE,
+                    RETURN_METHOD_CAPTURE_DESC, false);
             }
         } else {
             mv.visitLdcInsn(timerName);
             if (mark) {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, MARK_CAPTURE, RETURN_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, MARK_CAPTURE,
+                    RETURN_CAPTURE_DESC, false);
             } else {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, COUNT_CAPTURE, RETURN_CAPTURE_DESC, false);            
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, RETURN_CAPTURE_CL, COUNT_CAPTURE,
+                    RETURN_CAPTURE_DESC, false);
             }
         }
     }
