@@ -25,6 +25,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -104,8 +105,10 @@ public class DropwizardMetricsConfig {
     private static final String METER_OPTION = "meter";
     private static final String COUNTER_OPTION = "counter";
     private static final String TIMER_OPTION = "timer";
-    private static final Object RETURNCOUNT_OPTION = "count_return";
-    private static final Object RETURNMETER_OPTION = "meter_return";
+    private static final String RETURNCOUNT_OPTION = "count_return";
+    private static final String RETURNMETER_OPTION = "meter_return";
+    private static final String VALID_OPTIONS = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION;
+    private static final String VALID_TYPES = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION+","+RETURNCOUNT_OPTION+","+RETURNMETER_OPTION;
     private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
@@ -209,6 +212,7 @@ public class DropwizardMetricsConfig {
         if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH)) {
             try {
                 Builder b =  ElasticSearchReporter.fromRegistry(metricsRegistry);
+                @SuppressWarnings("unchecked")
                 List<String> hosts = (List<String>) getConfigObject(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_SERVERS_OPT);
                 for (String h : hosts) {
                     URL u = new URL(h);
@@ -427,6 +431,51 @@ public class DropwizardMetricsConfig {
 
     public boolean dumpClass(String className) {
         return TRUE_OPTION.equals(getConfig(className,DUMP_CLASS));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkMissedInstructions(String className, List<String[]> methods) {
+        Object o = getConfigObject(className);
+        if ( o instanceof Map) {
+            Map<String, Object> config = (Map<String, Object>) o;
+            for(Entry<String, Object> classMethods : config.entrySet()) {
+                if (!classMethods.getKey().startsWith("_")) {
+                    if (classMethods.getValue() instanceof Map) {
+                        for(Entry<String, Object> descs : ((Map<String, Object>) classMethods.getValue()).entrySet()) {
+                            logConfigNotUsed(className, classMethods.getKey(), descs.getKey(), descs.getValue(), methods);
+                        }
+                    } else {
+                        logConfigNotUsed(className, classMethods.getKey(), String.valueOf(classMethods.getValue()), methods);
+                    }
+                }
+            }
+        }
+    }
+
+    private void logConfigNotUsed(String className, String methodName, String option, List<String[]> methods) {
+        if (!VALID_OPTIONS.contains(option) ) {
+            activator.log(LogService.LOG_WARNING, "Config Option not valid for "+className+" "+methodName+" "+option+" should be one of "+VALID_OPTIONS);
+        }
+        for(String[] m : methods) {
+            if ( methodName.equals(m[0])) {
+                break;
+            }
+        }
+        activator.log(LogService.LOG_WARNING, "Unused Config for "+className+" "+methodName+" "+option);
+    }
+
+    private void logConfigNotUsed(String className, String methodName, String description, Object options, List<String[]> methods) {
+        if (options instanceof String) {
+            if (!VALID_OPTIONS.contains((String) options) ) {
+                activator.log(LogService.LOG_WARNING, "Config Option not valid for "+className+" "+methodName+" "+options+" should be one of "+VALID_OPTIONS);
+            }            
+        }
+        for(String[] m : methods) {
+            if ( methodName.equals(m[0]) && description.equals(m[1])) {
+                break;
+            }
+        }
+        activator.log(LogService.LOG_WARNING, "Unused Config for "+className+" "+methodName+" "+options);
     }
 
 

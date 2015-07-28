@@ -61,6 +61,8 @@ public class MetricsWeavingHook implements WeavingHook {
         	        if (mcv.additionalImportRequired())
         	            wovenClass.getDynamicImports().add(addedImport);
     	        }
+    	        
+    	        mcv.finish();
 	        } catch (Exception e) {
 	            activator.log(LogService.LOG_DEBUG, "Unable to weave class "+wovenClass.getClassName()+" cause "+e.getMessage());
 	        }

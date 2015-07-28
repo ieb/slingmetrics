@@ -21,126 +21,202 @@ package org.apache.sling.metrics.impl;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+
+import javax.annotation.Nonnull;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+
 /**
- * We need to override ASM's default behaviour in {@link #getCommonSuperClass(String, String)}
- * so that it doesn't load classes (which it was doing on the wrong {@link ClassLoader}
- * anyway...)
- *
- * Taken from the org.apache.aries.proxy.impl module.
- * 
- * Taken from https://svn.apache.org/repos/asf/aries/trunk/spi-fly/spi-fly-dynamic-bundle/src/main/java/org/apache/aries/spifly/dynamic/OSGiFriendlyClassWriter.java
- * 
+ * We need to override ASM's default behaviour in
+ * {@link #getCommonSuperClass(String, String)} so that it doesn't load classes
+ * (which it was doing on the wrong {@link ClassLoader} anyway...) Taken from
+ * the org.apache.aries.proxy.impl module. Taken from
+ * https://svn.apache.org/repos
+ * /asf/aries/trunk/spi-fly/spi-fly-dynamic-bundle/src
+ * /main/java/org/apache/aries/spifly/dynamic/OSGiFriendlyClassWriter.java
  */
 public final class OSGiFriendlyClassWriter extends ClassWriter {
 
-  private static final String OBJECT_INTERNAL_NAME = "java/lang/Object";
-  private final ClassLoader loader;
-private String className;
-private boolean dumpClass;
+    private static final String OBJECT_INTERNAL_NAME = "java/lang/Object";
 
+    public static final Set<String> EXCLUDE_INTERFACE = new HashSet<String>();
+    
+    static {
+        // exclude interfaces that would be chosen instead of java/lang/Object
+        EXCLUDE_INTERFACE.add("java/io/Serializable");
+        EXCLUDE_INTERFACE.add("java/lang/Cloneable");
+    }
 
-  public OSGiFriendlyClassWriter(ClassReader arg0, int arg1, ClassLoader loader) {
-    super(arg0, arg1);
+    private final ClassLoader loader;
 
-    this.loader = loader;
-  }
+    private String className;
 
-  public OSGiFriendlyClassWriter(int arg0, ClassLoader loader, String className, boolean dumpClass) {
-    super(arg0);
+    private boolean dumpClass;
 
-    this.loader = loader;
-    this.className = className;
-    this.dumpClass = dumpClass;
-  }
+    private Map<String, OsgiClass2> classes = new HashMap<String, OsgiClass2>();
 
-  
-  @Override
+    public OSGiFriendlyClassWriter(ClassReader arg0, int arg1, ClassLoader loader) {
+        super(arg0, arg1);
+
+        this.loader = loader;
+    }
+
+    public OSGiFriendlyClassWriter(int arg0, ClassLoader loader, String className, boolean dumpClass) {
+        super(arg0);
+
+        this.loader = loader;
+        this.className = className;
+        this.dumpClass = dumpClass;
+    }
+
+    @Override
     public byte[] toByteArray() {
         byte[] b = super.toByteArray();
         if (dumpClass) {
             try {
-                FileOutputStream fo = new FileOutputStream(className+".class");
+                FileOutputStream fo = new FileOutputStream(className + ".class");
                 fo.write(b);
                 fo.close();
-                System.err.println("Written "+b.length+" to "+className+".class");
+                System.err.println("Written " + b.length + " to " + className + ".class");
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
         return b;
     }
-  
-  
-  /**
-   * We provide an implementation that doesn't cause class loads to occur. It may
-   * not be sufficient because it expects to find the common parent using a single
-   * classloader, though in fact the common parent may only be loadable by another
-   * bundle from which an intermediate class is loaded
-   *
-   * precondition: arg0 and arg1 are not equal. (checked before this method is called)
-   */
-  @Override
-  protected final String getCommonSuperClass(String arg0, String arg1) {
-    //If either is Object, then Object must be the answer
-    if(arg0.equals(OBJECT_INTERNAL_NAME) || arg1.equals(OBJECT_INTERNAL_NAME)) {
-      return OBJECT_INTERNAL_NAME;
-    }
-    Set<String> names = new HashSet<String>();
-    names.add(arg0);
-    names.add(arg1);
-    //Try loading the class (in ASM not for real)
-    try {
-      boolean bRunning = true;
-      boolean aRunning = true;
-      InputStream is;
-      String arg00 = arg0;
-      String arg11 = arg1;
-      while(aRunning || bRunning ) {
-        if(aRunning) {
-          is = loader.getResourceAsStream(arg00 + ".class");
-          if(is != null) {
-            ClassReader cr = new ClassReader(is);
-            arg00 = cr.getSuperName();
-            if(arg00 == null) {
-              if (names.size() == 2) {
-                return OBJECT_INTERNAL_NAME; //arg0 is an interface
-              }
-              aRunning = false; //old arg00 was java.lang.Object
-            } else if(!!!names.add(arg00)) {
-              return arg00;
-            }
-          } else {
-            //The class file isn't visible on this ClassLoader
-            aRunning = false;
-          }
-        }
-        if(bRunning) {
-          is = loader.getResourceAsStream(arg11 + ".class");
-          if(is != null) {
-            ClassReader cr = new ClassReader(is);
-            arg11 = cr.getSuperName();
-            if(arg11 == null) {
-              if (names.size() == 3) {
-                return OBJECT_INTERNAL_NAME;  //arg1 is an interface
-              }
-              bRunning = false; //old arg11 was java.lang.Object
-            } else if(!!!names.add(arg11)) {
-              return arg11;
-            }
-          } else {
-            bRunning = false;
-          }
-        }
-      }
 
-      throw new RuntimeException("No Common Superclass:" + arg0 + " " + arg1);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    /**
+     * We provide an implementation that doesn't cause class loads to occur. It
+     * may not be sufficient because it expects to find the common parent using
+     * a single classloader, though in fact the common parent may only be
+     * loadable by another bundle from which an intermediate class is loaded
+     * precondition: arg0 and arg1 are not equal. (checked before this method is
+     * called)
+     */
+    @Override
+    protected final String getCommonSuperClass(String classA, String classB) {
+        // If either is Object, then Object must be the answer
+        classA = classA.replace('.', '/');
+        classB = classB.replace('.', '/');
+        if (classA.equals(OBJECT_INTERNAL_NAME) || classB.equals(OBJECT_INTERNAL_NAME)) {
+            return OBJECT_INTERNAL_NAME;
+        }
+        OsgiClass2 oClassB = new OsgiClass2(classB, classB, loader, true);
+        OsgiClass2 oClassA = oClassB.get(classA, classA);
+        return oClassA.getCommonSuperClass(classA, classB);
     }
-  }
+
+    public static class OsgiClass2 {
+        private ClassLoader classLoader;
+
+        private OsgiClass2 superClass;
+
+        private OsgiClass2[] interfaceClasses;
+
+        private String initialClass;
+
+        private Map<String, OsgiClass2> common;
+
+        private Set<String> shared;
+
+        private boolean breakOnShared;
+
+        public OsgiClass2(String initialClass, String className, ClassLoader loader,
+                boolean breakOnShared) {
+            this(initialClass, className, loader, breakOnShared,
+                new LinkedHashMap<String, OsgiClass2>(), new LinkedHashSet<String>());
+        }
+
+        public OsgiClass2(String initialClass, String className, ClassLoader loader,
+                boolean breakOnShared, Map<String, OsgiClass2> common, Set<String> shared) {
+            this.breakOnShared = breakOnShared;
+            this.common = common;
+            common.put(className, this);
+            this.initialClass = initialClass;
+            classLoader = loader;
+            this.shared = shared;
+            if (!abort()) {
+                load(className);
+            } else {
+                System.err.println("Loading aborted match found " + className);
+            }
+        }
+
+        public String getCommonSuperClass(String classA, String classB) {
+            shared.add(OBJECT_INTERNAL_NAME);
+            System.err.println(shared.iterator().next() + " is shared by "+classA+" and "+classB);
+            return shared.iterator().next();
+        }
+
+        private void load(String className) {
+
+            InputStream is = classLoader.getResourceAsStream(className + ".class");
+            if (is != null) {
+                try {
+                    ClassReader cr = new ClassReader(is);
+                    String[] interfaces = cr.getInterfaces();
+                    String superClassName = cr.getSuperName();
+                    if (superClassName == null) {
+                        addInterfaces(interfaces);
+                    } else if (!OBJECT_INTERNAL_NAME.equals(superClassName)) {
+                        superClass = get(initialClass, superClassName);
+                        addInterfaces(interfaces);
+                    }
+                } catch (IOException e) {
+                } finally {
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                    }
+                }
+            } else {
+                System.err.println("No Stream for " + className);
+            }
+        }
+
+
+        private void addInterfaces(String[] interfaces) {
+            if (interfaces != null) {
+                interfaceClasses = new OsgiClass2[interfaces.length];
+                for (int i = 0; i < interfaces.length; i++) {
+                    if (!EXCLUDE_INTERFACE.contains(interfaces[i])) {
+                        interfaceClasses[i] = get(initialClass, interfaces[i]);
+                        if (abort()) {
+                            break;
+                        }
+                    }
+                }
+            } else {
+                interfaceClasses = new OsgiClass2[0];
+            }
+        }
+
+        private boolean abort() {
+            return breakOnShared && shared.size() > 0;
+        }
+
+        public OsgiClass2 get(String initialClass, String className) {
+            OsgiClass2 oc = common.get(className);
+            if (oc == null) {
+                oc = new OsgiClass2(initialClass, className, classLoader, breakOnShared, common,
+                    shared);
+                common.put(className, oc);
+            } else if (!oc.initialClass.equals(initialClass)) {
+                shared.add(className);
+            }
+            return oc;
+        }
+
+    }
+
 }
