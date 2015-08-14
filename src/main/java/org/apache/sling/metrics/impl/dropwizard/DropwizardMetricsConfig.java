@@ -226,7 +226,7 @@ public class DropwizardMetricsConfig {
                     b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_CUSTOMER_ID_OPT));
                 }
                 if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT)) {
-                    b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
+                    b.instanceId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
                 }
                 if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_FIELD_EXPANDERS)) {
 					@SuppressWarnings("unchecked")
