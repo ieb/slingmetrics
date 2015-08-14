@@ -69,7 +69,7 @@ public class ReturnCapture {
                 Class<?> c = ReturnCapture.class.getClassLoader().loadClass(helperClass);
                 Object helper = c.newInstance();
                 if (helper instanceof MetricsNameHelper) {
-                    return name+((MetricsNameHelper) o).getName(o);
+                    return name+((MetricsNameHelper) helper).getName(o);
                 } else {
                     return name+"_error_invalid_helper";
                 }
