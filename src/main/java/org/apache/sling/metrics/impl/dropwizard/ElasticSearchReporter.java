@@ -27,21 +27,27 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.sling.metrics.api.CustomFieldExpander;
 import org.apache.sling.metrics.api.LogServiceHolder;
+import org.apache.sling.metrics.impl.MetricsActivator;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
@@ -148,11 +154,15 @@ public class ElasticSearchReporter extends ScheduledReporter {
 
         private List<URL> serverUrls = new ArrayList<URL>();
 
+        private Map<Pattern, String> customFieldExpanders = new HashMap<Pattern, String>();
+        
         private int timeout = 10000;
 
         private int maxCommands = 1000;
 
         private LogServiceHolder logServiceHolder;
+        
+        private MetricsActivator activator;
 
         public Builder(MetricRegistry registry) {
             this.registry = registry;
@@ -192,6 +202,11 @@ public class ElasticSearchReporter extends ScheduledReporter {
             serverUrls.add(serverUrl);
             return this;
         }
+        
+        public Builder addCustomFieldExpander(String patternString, String className) {
+            customFieldExpanders.put(Pattern.compile(patternString), className);
+            return this;
+        }
 
         public Builder hostTimeout(int timeout) {
             this.timeout = timeout;
@@ -206,10 +221,13 @@ public class ElasticSearchReporter extends ScheduledReporter {
             this.logServiceHolder = logServiceHolder;
             return this;
         }
-
+        public Builder withMetricsActivator(MetricsActivator activator) {
+            this.activator = activator;
+            return this;
+        }
 
         public ElasticSearchReporter build() throws IOException {
-            return new ElasticSearchReporter(logServiceHolder, registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
+            return new ElasticSearchReporter(activator, logServiceHolder, registry, name, filter, rateUnit, durationUnit, customerId, instanceId, serverUrls, timeout, maxCommands);
         }
 
 
@@ -236,13 +254,16 @@ public class ElasticSearchReporter extends ScheduledReporter {
     private List<URL> hosts;
 
     private LogServiceHolder logServiceHolder;
+    
+    private MetricsActivator activator;
 
-    protected ElasticSearchReporter(@Nullable LogServiceHolder logServiceHolder,
+    protected ElasticSearchReporter(@Nullable MetricsActivator activator, @Nullable LogServiceHolder logServiceHolder,
             @Nonnull MetricRegistry registry, @Nonnull String name, @Nonnull MetricFilter filter,
            @Nonnull TimeUnit rateUnit, @Nonnull TimeUnit durationUnit, @Nonnull String customerId, @Nonnull String instanceId,
            @Nonnull List<URL> hosts, int timeout, int maxCommands) throws IOException {
         super(registry, name, filter, rateUnit, durationUnit);
         this.logServiceHolder = logServiceHolder;
+        this.activator = activator;
         this.timeout = timeout;
         this.customerId = customerId;
         this.instanceId = instanceId;
@@ -270,7 +291,7 @@ public class ElasticSearchReporter extends ScheduledReporter {
         try{
             Updater u = new Updater(hosts, "/_bulk", "POST", timeout, maxCommands, this);
             for ( Entry<String, Gauge> e : gauges.entrySet()) {
-                sendGuage(e.getKey(), e.getValue(), timestamp, u);
+                sendGauge(e.getKey(), e.getValue(), timestamp, u);
             }
             for ( Entry<String, Counter> e : counters.entrySet()) {
                 sendCounter(e.getKey(), e.getValue(), timestamp, u);
@@ -306,48 +327,58 @@ public class ElasticSearchReporter extends ScheduledReporter {
         }
     }
 
-    private void sendGuage(String name, Gauge value, long timestamp, Updater w) throws IOException {
+    private void sendGauge(String name, Gauge<?> value, long timestamp, Updater w) throws IOException {
         w.action(indexAction(index, GAUGE_TYP));
-        w.source(mapAdd(standardFields(name, timestamp),VALUE_FLD, value.getValue()));
+        Map<String, Object> fields = mapAdd(standardFields(name, timestamp), expandCustomFields(name),VALUE_FLD, value.getValue());
+        fields.putAll(expandCustomFields(name));
+        w.source(fields);
     }
     
     private void sendCounter(String name, Counter value, long ts, Updater w) throws IOException {
         w.action(indexAction(index, COUNTER_TYP));
-        w.source(mapAdd(standardFields(name, ts),COUNT_FLD, value.getCount()));
+        Map<String, Object> fields = mapAdd(standardFields(name, ts), expandCustomFields(name),COUNT_FLD, value.getCount());
+        fields.putAll(expandCustomFields(name));
+        w.source(fields);
     }
 
 
     private void sendHistogram(String name, Histogram value, long ts, Updater w) throws IOException {
         w.action(indexAction(index, HISTOGRAM_TYP));
-        w.source(mapAddHistogtam(mapAdd(standardFields(name, ts),
-            COUNT_FLD, value.getCount()), value.getSnapshot(), 1.0));
+        Map<String, Object> fields = mapAdd(standardFields(name, ts),
+                COUNT_FLD, value.getCount());
+        fields.putAll(expandCustomFields(name));
+        w.source(mapAddHistogram(fields, value.getSnapshot(), 1.0));
     }
     
 
 
     private void sendMeter(String name, Meter value, long ts, Updater w) throws IOException {
         w.action(indexAction(index, METER_TYP));
-        w.source(mapAdd(standardFields(name, ts),
-            COUNT_FLD, value.getCount(),
-            M1_RATE_FLD, value.getOneMinuteRate() * rateFactor,
-            M5_RATE_FLD, value.getFiveMinuteRate() * rateFactor,
-            M15_RATE_FLD, value.getFifteenMinuteRate() * rateFactor,
-            MEAN_RATE_FLD, value.getMeanRate() * rateFactor,
-            UNITS_FLD, "events/"+rateUnits
-            ));
+        Map<String, Object> fields = mapAdd(standardFields(name, ts),
+                COUNT_FLD, value.getCount(),
+                M1_RATE_FLD, value.getOneMinuteRate() * rateFactor,
+                M5_RATE_FLD, value.getFiveMinuteRate() * rateFactor,
+                M15_RATE_FLD, value.getFifteenMinuteRate() * rateFactor,
+                MEAN_RATE_FLD, value.getMeanRate() * rateFactor,
+                UNITS_FLD, "events/"+rateUnits
+                );
+        fields.putAll(expandCustomFields(name));
+        w.source(fields);
     }
 
     private void sendTimer(String name, Timer value, long ts, Updater w) throws IOException {
         w.action(indexAction(index, TIMER_TYP));
-        w.source(mapAdd(mapAddHistogtam(standardFields(name, ts), value.getSnapshot(), durationFactor),
-            COUNT_FLD, value.getCount(),
-            M1_RATE_FLD, value.getOneMinuteRate() * rateFactor,
-            M5_RATE_FLD, value.getFiveMinuteRate() * rateFactor,
-            M15_RATE_FLD, value.getFifteenMinuteRate() * rateFactor,
-            MEAN_RATE_FLD, value.getMeanRate() * rateFactor,
-            RATE_UNITS_FLD, "calls/"+rateUnits,
-            DURATION_UNITS_FLD, durationUnits
-            ));        
+        Map<String, Object> fields = mapAdd(mapAddHistogram(standardFields(name, ts), value.getSnapshot(), durationFactor), 
+                COUNT_FLD, value.getCount(),
+                M1_RATE_FLD, value.getOneMinuteRate() * rateFactor,
+                M5_RATE_FLD, value.getFiveMinuteRate() * rateFactor,
+                M15_RATE_FLD, value.getFifteenMinuteRate() * rateFactor,
+                MEAN_RATE_FLD, value.getMeanRate() * rateFactor,
+                RATE_UNITS_FLD, "calls/"+rateUnits,
+                DURATION_UNITS_FLD, durationUnits
+                );
+        fields.putAll(expandCustomFields(name));
+        w.source(fields);        
     }
     
 
@@ -359,6 +390,16 @@ public class ElasticSearchReporter extends ScheduledReporter {
     private Map<String, Object> standardFields(String name, long timestamp) {
         return createMap(NAME_FLD,name,TIMESTAMP_FLD,timestamp,CUSTOMER_ID_FLD,customerId, INSTANCE_ID_FLD, instanceId);
     }
+    
+	private Map<String, Object> expandCustomFields(String name) {
+		Map<String, Object> customFields = new HashMap<String, Object>();
+		for (CustomFieldExpander expander : activator.getCustomFieldExpanderServices()) {
+			if (expander.accepts(name)) {
+				customFields.putAll(expander.getCustomFields(name));
+			}
+		}
+		return customFields;
+	}
 
     public static Map<String, Object> mapAdd(Map<String, Object> m, Object ... v) {
         for (int i = 0; i < v.length; i=i+2) {
@@ -371,7 +412,15 @@ public class ElasticSearchReporter extends ScheduledReporter {
         return mapAdd(new HashMap<String, Object>(), v);
     }
 
-    private Map<String, Object> mapAddHistogtam(Map<String, Object> m, Snapshot s, double factor) {
+	public static List<Object> createList(Object... v) {
+		List<Object> objects = new ArrayList<Object>();
+		for (int i = 0; i < v.length; i++) {
+			objects.add(v[i]);
+		}
+		return objects;
+    }
+
+    private Map<String, Object> mapAddHistogram(Map<String, Object> m, Snapshot s, double factor) {
         return mapAdd(m, 
             MAX_FLD, s.getMax() * factor,
             MEAN_FLD, s.getMean() * factor,
@@ -519,6 +568,17 @@ public class ElasticSearchReporter extends ScheduledReporter {
                 w.write("\"");
             } else if (v instanceof Integer || v instanceof Long || v instanceof Boolean || v instanceof Double || v instanceof Float) {
                 w.write(String.valueOf(v));            
+            } else if (v instanceof List){
+            	Iterator<Object> it =  ((List<Object>)v).iterator();
+            	w.write("[");
+            	while(it.hasNext()){
+            		write(it.next(), w);
+            		if(it.hasNext()){
+            			w.write(",");
+            		}
+            	} 	
+            	w.write("]");
+
             } else {
                 throw new IOException("Cant convert "+v.getClass()+" to JSON form ");
             }

@@ -24,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.annotation.Nonnull;
 
+import org.apache.sling.metrics.api.CustomFieldExpander;
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsFactory;
 import org.apache.sling.metrics.api.MetricsUtil;
@@ -46,14 +47,22 @@ public class MetricsActivator implements BundleActivator, LogServiceHolder {
     private ServiceRegistration<?> metricsRegistryService;
     private DropwizardMetricsConfig metricsConfig;
     private List<LogService> logServices = new CopyOnWriteArrayList<LogService>();
+    private List<CustomFieldExpander> customFieldExpanderServices = new CopyOnWriteArrayList<CustomFieldExpander>();
     private LogServiceTracker logServiceTracker;
+    private CustomFieldExpanderServiceTracker customFieldExpanderServiceTracker;
     private boolean debugEnabled;
 
 
-    @Override
+    public List<CustomFieldExpander> getCustomFieldExpanderServices() {
+		return customFieldExpanderServices;
+	}
+
+	@Override
     public synchronized void start(BundleContext context) throws Exception {
         logServiceTracker = new LogServiceTracker(context);
         logServiceTracker.open();
+        customFieldExpanderServiceTracker = new CustomFieldExpanderServiceTracker(context);
+        customFieldExpanderServiceTracker.open();
         ReturnCapture.setLogServiceHolder(this);
         MetricsUtil.setLogServiceHolder(this);
         metricsConfig = new DropwizardMetricsConfig(this);
@@ -72,6 +81,7 @@ public class MetricsActivator implements BundleActivator, LogServiceHolder {
         metricsRegistryService.unregister();
         metricsConfig.close();
         logServiceTracker.close();
+        customFieldExpanderServiceTracker.close();
     }
     
     @Override
@@ -146,4 +156,22 @@ public class MetricsActivator implements BundleActivator, LogServiceHolder {
         }
     }
 
+    
+    private class CustomFieldExpanderServiceTracker extends ServiceTracker {
+        public CustomFieldExpanderServiceTracker(@Nonnull BundleContext context) {
+            super(context, CustomFieldExpander.class.getName(), null);
+        }
+
+        public Object addingService(@SuppressWarnings("rawtypes") ServiceReference reference) {
+            Object svc = super.addingService(reference);
+            if (svc instanceof CustomFieldExpander)
+                customFieldExpanderServices.add((CustomFieldExpander) svc);
+            return svc;
+        }
+
+        @Override
+        public void removedService(@SuppressWarnings("rawtypes") ServiceReference reference, Object service) {
+            customFieldExpanderServices.remove(service);
+        }
+    }
 }

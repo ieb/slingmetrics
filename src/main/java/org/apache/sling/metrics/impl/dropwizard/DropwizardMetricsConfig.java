@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsUtil;
+import org.apache.sling.metrics.impl.MetricsActivator;
 import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
 
 import com.codahale.metrics.ConsoleReporter;
@@ -84,6 +85,7 @@ public class DropwizardMetricsConfig {
     private static final String ES_INSTANCE_ID_OPT = "instanceId";
     private static final String ES_CUSTOMER_ID_OPT = "customerId";
     private static final String ES_SERVERS_OPT = "servers";
+    private static final String ES_FIELD_EXPANDERS = "customFieldExpanders";
     private static final String PERIOD_OPT = "period";
     private static final String CONSOLE_OPT = "console";
     private static final String JMX_OPT = "jmx";
@@ -113,6 +115,7 @@ public class DropwizardMetricsConfig {
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
     private LogServiceHolder logServiceHolder;
+    private MetricsActivator activator;
     private MetricRegistry metricsRegistry = new MetricRegistry();
     private boolean monitorClasses;
     private FileWriter dumpFile;
@@ -122,8 +125,9 @@ public class DropwizardMetricsConfig {
     private List<Pattern> dumpIncludes = new ArrayList<Pattern>();
     private List<Pattern> dumpExcludes = new ArrayList<Pattern>();
 
-    public DropwizardMetricsConfig(@Nonnull LogServiceHolder logServiceHolder) {
-        this.logServiceHolder = logServiceHolder;
+    public DropwizardMetricsConfig(@Nonnull MetricsActivator activator) {
+        this.logServiceHolder = (LogServiceHolder)activator;
+        this.activator = activator;
         String metricsConfigProperties = System.getProperty(METRICS_CONFIG_PROP, METRICS_CONFIG_FILENAME);
         load(metricsConfigProperties);
         monitorClasses = TRUE_OPTION.equals(getConfig(GLOBAL_CONFIG,MONITOR_OPT));
@@ -224,7 +228,24 @@ public class DropwizardMetricsConfig {
                 if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT)) {
                     b.customerId(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_INSTANCE_ID_OPT));
                 }
+                if ( configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ES_FIELD_EXPANDERS)) {
+					@SuppressWarnings("unchecked")
+					List<Object> expandersList = (List<Object>) getConfigObject(GLOBAL_CONFIG, REPORTERS_CONFIG,
+							ELASTIC_SEARCH, ES_FIELD_EXPANDERS);
+					if (expandersList != null) {
+						for (Object obj : expandersList) {
+							if (obj instanceof Map) {
+								@SuppressWarnings("unchecked")
+								Map<String, String> customExpander = (Map<String, String>) obj;
+								b.addCustomFieldExpander(customExpander.get("pattern"),
+										customExpander.get("helperClass"));
+							}
+						}
+
+					}
+                }
                 b.withLogServiceHolder(logServiceHolder);
+                b.withMetricsActivator(activator);
                 ElasticSearchReporter r = b.build();
                 int reportingPeriod = 60;
                 if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, ED_PERIOD_OPT)) {
