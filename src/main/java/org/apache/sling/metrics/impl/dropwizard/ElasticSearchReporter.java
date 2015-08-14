@@ -122,8 +122,10 @@ public class ElasticSearchReporter extends ScheduledReporter {
             createMap(
                 "name", createMap("type", "string", "index", "not_analyzed"),
                 TIMESTAMP_FLD, createMap("type", "date")
-                    )));
-
+                    ),
+			"dynamic_templates", createList(createMap("notanalyzed", createMap("match", "*", "match_mapping_type",
+					"string", "mapping", createMap("type", "string", "index", "not_analyzed"))))));
+    
     public static Builder fromRegistry(MetricRegistry registry) {
         return new Builder(registry);
     }
