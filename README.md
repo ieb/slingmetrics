@@ -14,6 +14,17 @@ The bundle should be loaded at as low a start level as possible so that its Weav
 
     mvn clean install sling:install -Dsling.bundle.startlevel=1
 
+Alternatively if using Crankstart or a AEM launcher config file you can add the bundle with 
+
+    [feature name=instrument]
+     
+    [artifacts startLevel=1 runModes=instrument]
+      org.apache.sling/org.apache.sling.metrics/0.0.1-SNAPSHOT/jar
+
+Making sure to start with the "instument" run code.
+
+The metrics config file can be specified with -Dmetrics.config=/location/of/the/metrics.yaml
+
 Configuration
 -------------
 

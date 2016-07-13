@@ -171,6 +171,24 @@ public class DropwizardMetricsConfig {
         return patterns;
     }
 
+    private String getConfigWithAlternatives(String first, String[] alternatives, String ... path) {
+        String[] p = new String[path.length+1];
+        System.arraycopy(path,0,p,1,path.length);
+        p[0] = first;
+        String s = getConfig(p);
+        if ( s != null) {
+            return s;
+        }
+        for ( String alt : alternatives ) {
+            p[0] = alt;
+            s = getConfig(p);
+            if ( s != null) {
+                return s;
+            }
+        }
+        return null;
+    }
+
     @Nullable
     private String getConfig(@Nonnull String ... path) {
         Object o = getConfigObject(path);
@@ -330,12 +348,12 @@ public class DropwizardMetricsConfig {
             }
         }
     }
-    public boolean addMethodTimer(@Nonnull  String className, @Nonnull String name, @Nonnull String desc) {
+    public boolean addMethodTimer(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
         if (TRUE_OPTION.equals(getConfig(className,MONITOR_CLASS_OPT))) {
             logServiceHolder.info("Checking Method: ",className,".",name,desc);
         }
         dumpConfig(className, name, desc);
-        return TIMER_OPTION.equals(getConfig(className, name)) || TIMER_OPTION.equals(getConfig(className, name, desc));
+        return TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
 
@@ -370,7 +388,7 @@ public class DropwizardMetricsConfig {
         }
     }
 
-    private boolean includeInDump(String className) {
+    private boolean includeInDump(String className, String[] ancestors) {
         boolean include = true;
         if (dumpFile == null) {
             return false;
@@ -379,6 +397,15 @@ public class DropwizardMetricsConfig {
             include = false;
             if (p.matcher(className).matches()) {
                 include = true;
+                break;
+            }
+            for ( String a : ancestors) {
+                if (p.matcher(a).matches()) {
+                    include = true;
+                    break;
+                }
+            }
+            if ( include ) {
                 break;
             }
         }
@@ -392,34 +419,34 @@ public class DropwizardMetricsConfig {
         return include;
     }
 
-    public boolean addCount(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
-        return COUNTER_OPTION.equals(getConfig(className, name)) || COUNTER_OPTION.equals(getConfig(className, name, desc));
+    public boolean addCount(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
-    public boolean addMark(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
-        return METER_OPTION.equals(getConfig(className, name)) || METER_OPTION.equals(getConfig(className, name, desc));
+    public boolean addMark(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
     
-    public boolean addReturnCount(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
-        return RETURNCOUNT_OPTION.equals(getConfig(className, name, TYPE)) || RETURNCOUNT_OPTION.equals(getConfig(className, name, desc, TYPE));
+    public boolean addReturnCount(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+        return RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, TYPE)) || RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
     }
-    public boolean addReturnMark(@Nonnull String className,@Nonnull  String name, @Nonnull String desc) {
-        return RETURNMETER_OPTION.equals(getConfig(className, name, TYPE)) || RETURNMETER_OPTION.equals(getConfig(className, name, desc, TYPE));
+    public boolean addReturnMark(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+        return RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, TYPE)) || RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
     }
 
     @Nullable
-    public String getReturnKeyMethod(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
-        String methodName = getConfig(className, name, desc, KEY_METHOD);
+    public String getReturnKeyMethod(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+        String methodName = getConfigWithAlternatives(className, ancestors, name, desc, KEY_METHOD);
         if (methodName == null) {
-            methodName = getConfig(className, name, KEY_METHOD);            
+            methodName = getConfigWithAlternatives(className, ancestors, name, KEY_METHOD);
         }
         return methodName;
     }
 
-    public String getHelperClassName(String className, String name, String desc) {
-        String methodName = getConfig(className, name, desc, HELPER_CLASS);
+    public String getHelperClassName(String className, String[] ancestors, String name, String desc) {
+        String methodName = getConfigWithAlternatives(className, ancestors, name, desc, HELPER_CLASS);
         if (methodName == null) {
-            methodName = getConfig(className, name, HELPER_CLASS);            
+            methodName = getConfigWithAlternatives(className, ancestors, name, HELPER_CLASS);
         }
         return methodName;
     }
@@ -437,16 +464,24 @@ public class DropwizardMetricsConfig {
     
 
 
-    public boolean addMetrics(@Nonnull String className) {
+    public boolean addMetrics(@Nonnull String className, String[] ancestors) {
         if (monitorClasses) {
             logServiceHolder.info("Loading Class: ",className);
         }
-        if (includeInDump(className)) {
+        if (includeInDump(className, ancestors)) {
             // dump for all classes except asm classes, as if you try and instrument asm classes, you end up in recursion.
             logServiceHolder.info("Dumping Class: ",className);
             return true;
         }
-        return configExists(className);
+        if (configExists(className)) {
+            return true;
+        }
+        for(String a : ancestors) {
+            if (configExists(a)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean dumpClass(String className) {

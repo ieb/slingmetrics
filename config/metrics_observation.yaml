@@ -1,0 +1,9 @@
+global:
+  reporters:
+    jmx: true
+    console:
+      period: 30
+org.apache.jackrabbit.oak.spi.commit.Observer:
+  contentChanged : timer
+javax.jcr.observation.EventListener:
+  onEvent : timer
