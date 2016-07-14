@@ -1,0 +1,13 @@
+language: java
+
+jdk:
+  - openjdk7
+
+sudo: false
+
+install: true
+
+script: mvn -q clean install
+
+notifications:
+  email: false
