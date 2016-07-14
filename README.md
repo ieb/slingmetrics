@@ -27,6 +27,12 @@ Making sure to start with the "instument" run code.
 
 The metrics config file can be specified with -Dmetrics.config=/location/of/the/metrics.yaml
 
+Contributing
+------------
+
+If you find a bug or have an improvement please open an issue at this git repo.  If you have a patch please open a pull request. The repo is https://github.com/ieb/slingmetrics if your not already here.
+By Contributing anything you agree to the same CLA as used for all Apache projects. (this is not an official Apache project) 
+
 Configuration
 -------------
 

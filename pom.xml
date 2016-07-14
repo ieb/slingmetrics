@@ -37,9 +37,9 @@
     </description>
 
     <scm>
-        <connection>scm:svn:http://svn.apache.org/repos/asf/sling/trunk/bundles/extensions/metrics</connection>
-        <developerConnection>scm:svn:https://svn.apache.org/repos/asf/sling/trunk/bundles/extensions/metrics</developerConnection>
-        <url>http://svn.apache.org/viewvc/sling/trunk/bundles/extensions/event</url>
+        <connection>scm:git:git@github.com:ieb/slingmetrics.git</connection>
+        <developerConnection>scm:git:git@github.com:ieb/slingmetrics.git</developerConnection>
+        <url>https://github.com/ieb/slingmetrics</url>
     </scm>
 
     <properties>
