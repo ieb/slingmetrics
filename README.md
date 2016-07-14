@@ -1,6 +1,8 @@
 Metrics
 =======
 
+[![Build Status](https://travis-ci.org/ieb/slingmetrics.svg?branch=master)](https://travis-ci.org/ieb/slingmetrics)
+
 This bundle adds Dorpwizard Metrics. It does 2 things.
 
 1. Provides an API to interact with a Metrics integration (MetricsFactory, MetricsUtil)
