@@ -72,15 +72,35 @@ Reporters:
 
     global:
       reporters:
-        jmx: true
-        servlet: true
-        kibana:
-          url: http://monioring.example.com          
-        graphite: true
-        console:
+        # Report as a JMX bean
+        jmx: true 
+        # Send to Kibana
+        elastic_search:
+          # Send to one of 3 ES servers.
+          servers:
+             - http://es_server1.example.com
+             - http://es_server2.example.com
+             - http://es_server3.example.com
           period: 30
+          instanceId: instance1
+          customerId: tenant1234
+          customFieldExpanders:
+             - pattern: .* 
+               helperClass: com.adobe.cq.metrics.helpers.DefaultESHelperClass
+        console:
+          # Report every metric long form to stdout
+          period: 30
+        csv:
+          # A CSV reporter will report each metric into a directory, in this case <cwd>/metrics
+          dir: metrics
+          period: 30
+        slf4j:
+          # report via logging to the logger org.apache.sling.metrics.status
+          logger: org.apache.sling.metrics.status
+          period: 30
+
   
-A number of reporters are supported within the core bundle, and some of those reporters have configuration options. This area is WIP, currently only console and JMX are fully supported.
+A number of reporters are supported within the core bundle, other metrics helpers can be added in additional bundles.
 
 
 Per Class Configuration

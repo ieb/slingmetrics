@@ -96,7 +96,7 @@ public class MetricsWeavingHook implements WeavingHook {
     private Set<String> loadAncestors(@Nullable ClassReader cr, @Nonnull Set<String> ancestors) {
         if ( cr != null) {
             addAll(ancestors, cr.getInterfaces());
-            addAll(ancestors, cr.getSuperName());
+            //addAll(ancestors, cr.getSuperName());
         }
         return ancestors;
     }

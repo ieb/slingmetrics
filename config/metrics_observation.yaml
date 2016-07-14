@@ -1,9 +1,14 @@
 global:
   reporters:
     jmx: true
-    console:
+    csv:
+      dir: metrics
+      period: 30
+    slf4j:
+      logger: org.apache.sling.metrics.status
       period: 30
 org.apache.jackrabbit.oak.spi.commit.Observer:
   contentChanged : timer
 javax.jcr.observation.EventListener:
   onEvent : timer
+

@@ -18,12 +18,14 @@
 package org.apache.sling.metrics.impl.dropwizard;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Stack;
@@ -33,15 +35,17 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Slf4jReporter;
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsUtil;
 import org.apache.sling.metrics.impl.MetricsActivator;
 import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.MetricRegistry;
 import com.esotericsoftware.yamlbeans.YamlReader;
+import org.slf4j.LoggerFactory;
 
 /**
  * Configure dropwizards instrumentation from a yaml file.
@@ -90,6 +94,10 @@ public class DropwizardMetricsConfig {
     private static final String CONSOLE_OPT = "console";
     private static final String JMX_OPT = "jmx";
     private static final String ELASTIC_SEARCH = "elastic_search";
+    private static final String CSV_REPORTER = "csv";
+    private static final String CSV_OUT_DIR = "dir";
+    private static final String SLF4J_REPORTER = "slf4j";
+    private static final String SLF4J_LOGGER_OPT = "logger";
     private static final String GRAPHITE_OPT = "graphite";
     private static final String SERVLET_OPT = "servlet";
     private static final String REPORTERS_CONFIG = "reporters";
@@ -226,6 +234,43 @@ public class DropwizardMetricsConfig {
 
 
     private void createOtherReporters() {
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG, CSV_REPORTER)) {
+            String outputdir = (String) getConfigObject(GLOBAL_CONFIG,REPORTERS_CONFIG, CSV_REPORTER, CSV_OUT_DIR);
+            int reportingPeriod = 60;
+            if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,ELASTIC_SEARCH, PERIOD_OPT)) {
+                reportingPeriod = Integer.parseInt(getConfig(GLOBAL_CONFIG,REPORTERS_CONFIG, CSV_REPORTER, PERIOD_OPT));
+            }
+
+            File output = new File(outputdir);
+            output.mkdirs();
+            CsvReporter reporter = CsvReporter.forRegistry(metricsRegistry)
+                    .formatFor(Locale.US.US)
+                            .convertRatesTo(TimeUnit.SECONDS)
+                            .convertDurationsTo(TimeUnit.MILLISECONDS)
+                            .build(output);
+            reporter.start(reportingPeriod, TimeUnit.SECONDS);
+            reporters.add(reporter);
+            logServiceHolder.info("Registered CSV Reporter, in ", output.getAbsoluteFile()," reporting interval ", reportingPeriod);
+
+        }
+        if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG, SLF4J_REPORTER)) {
+            String logger = "org.apache.sling.metrics.status";
+            if (configExists(GLOBAL_CONFIG, REPORTERS_CONFIG, SLF4J_REPORTER, SLF4J_LOGGER_OPT)) {
+                logger = (String)getConfigObject(GLOBAL_CONFIG, REPORTERS_CONFIG, SLF4J_REPORTER, SLF4J_LOGGER_OPT);
+            }
+            int reportingPeriod = 60;
+            if (configExists(GLOBAL_CONFIG, REPORTERS_CONFIG, ELASTIC_SEARCH, PERIOD_OPT)) {
+                reportingPeriod = Integer.parseInt(getConfig(GLOBAL_CONFIG, REPORTERS_CONFIG, SLF4J_REPORTER, PERIOD_OPT));
+            }
+            Slf4jReporter reporter = Slf4jReporter.forRegistry(metricsRegistry)
+                    .outputTo(LoggerFactory.getLogger(logger))
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .build();
+            reporter.start(reportingPeriod, TimeUnit.SECONDS);
+            reporters.add(reporter);
+            logServiceHolder.info("Registered SLF4J Reporter, to logger ", logger, " reporting interval ", reportingPeriod);
+        }
         if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,SERVLET_OPT)) {
         }
         if (configExists(GLOBAL_CONFIG,REPORTERS_CONFIG,GRAPHITE_OPT)) {
