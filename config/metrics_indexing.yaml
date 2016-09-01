@@ -1,0 +1,16 @@
+global:
+  reporters:
+    jmx: true
+    csv:
+      dir: metrics
+      period: 30
+    slf4j:
+      logger: org.apache.sling.metrics.status
+      period: 30
+org.apache.jackrabbit.oak.plugins.index.lucene.LuceneIndexEditor:
+  parseStringValue: timer
+  parseStringValue0: timer
+org.apache.jackrabbit.oak.plugins.index.lucene.writer.LuceneIndexWriter:
+  updateDocument: timer
+  deleteDocuments: timer
+  close: timer
