@@ -19,6 +19,9 @@ package org.apache.sling.metrics.impl;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Dictionary;
+import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -71,7 +74,9 @@ public class MetricsActivator implements BundleActivator, LogServiceHolder {
         weavingHookService = context.registerService(WeavingHook.class.getName(), weavingHook, null);
         metricsFactoryService = context.registerService(MetricsFactory.class.getName(), metricsConfig.getMetricsFactory(), null);
         // this allows other bundles to implement reporters.
-        metricsRegistryService = context.registerService(MetricRegistry.class.getName(), metricsConfig.getRegistry(), null);
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("name", "woven");
+        metricsRegistryService = context.registerService(MetricRegistry.class.getName(), metricsConfig.getRegistry(), properties);
     }
 
     @Override
