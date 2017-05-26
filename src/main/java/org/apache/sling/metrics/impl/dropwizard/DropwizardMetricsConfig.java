@@ -224,7 +224,49 @@ public class DropwizardMetricsConfig {
                 break;
             }
         }
+        if ( o == null && path.length > 0) {
+            // only consider the first path element.
+            Map<String, Object> classPatterns = (Map<String, Object>)configMap.get("packages");
+            if (classPatterns != null) {
+                for (Entry<String, Object> e: classPatterns.entrySet()) {
+                    if (path[0].startsWith(e.getKey())) {
+                        return e.getValue();
+                    }
+                }            
+            }
+
+        }
         return o;
+    }
+
+    private String getMatchedClassName(@Nonnull String className, @Nonnull String[] alternatives) {
+        if (configMap == null) {
+            return className;
+        }
+        if ( configMap.containsKey(className)) {
+            return className;
+        }
+        for (String alternative: alternatives) {
+            if (configMap.containsKey(alternative)) {
+                return alternative;
+            }
+        }
+        Map<String, Object> classPatterns = (Map<String, Object>)configMap.get("packages");
+        if (classPatterns != null) {
+            for (Entry<String, Object> e: classPatterns.entrySet()) {
+                if (className.startsWith(e.getKey())) {
+                        return className;
+                }
+            }
+            for (String alternative: alternatives) {
+                for (Entry<String, Object> e: classPatterns.entrySet()) {
+                    if (alternative.startsWith(e.getKey())) {
+                            return alternative;
+                    }
+                }
+            }
+        }
+        return className;
     }
     
     @Nullable
@@ -498,12 +540,13 @@ public class DropwizardMetricsConfig {
 
     
     @Nonnull 
-    public String getMetricName(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+    public String getMetricName(@Nonnull String className, @Nonnull String[] ancestors,  @Nonnull String name, @Nonnull String desc) {
         String option = getConfig(className, name);
+        String matchedClassName = getMatchedClassName(className, ancestors);
         if ( TIMER_OPTION.equals(option) || COUNTER_OPTION.equals(option) || METER_OPTION.equals(option)) {
-            return DropwizardMetricsFactory.name(className, name);            
+            return DropwizardMetricsFactory.name(matchedClassName, name);            
         } else {
-            return DropwizardMetricsFactory.name(className, name+desc);
+            return DropwizardMetricsFactory.name(matchedClassName, name+desc);
         }
     }
     

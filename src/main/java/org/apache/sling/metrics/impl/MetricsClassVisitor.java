@@ -73,37 +73,37 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
         try {
             methods.add(new String[] { name, desc });
             if (metricsConfig.addMethodTimer(className, ancestors, name, desc)) {
-                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, " to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new TimerAdapter(mv, access, name, desc, metricsConfig.getMetricName(
-                    className, name, desc));
+                return new TimerAdapter(mv, access, name, desc, metricName);
             } else if (metricsConfig.addCount(className, ancestors, name, desc)) {
-                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(
-                    className, name, desc), "count");
+                return new VoidAdapter(mv, access, name, desc, metricName, "count");
             } else if (metricsConfig.addMark(className, ancestors, name, desc)) {
-                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new VoidAdapter(mv, access, name, desc, metricsConfig.getMetricName(
-                    className, name, desc), "mark");
+                return new VoidAdapter(mv, access, name, desc, metricName, "mark");
             } else if (metricsConfig.addReturnCount(className, ancestors, name, desc)) {
-                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(
-                    className, name, desc),
+                return new ReturnAdapter(mv, access, name, desc, metricName,
                     metricsConfig.getReturnKeyMethod(className, ancestors, name, desc),
                     metricsConfig.getHelperClassName(className, ancestors, name, desc), false);
             } else if (metricsConfig.addReturnMark(className, ancestors, name, desc)) {
-                logServiceHolder.info("Adding Metrics to method ", className, " ", name);
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
-                return new ReturnAdapter(mv, access, name, desc, metricsConfig.getMetricName(
-                    className, name, desc),
+                return new ReturnAdapter(mv, access, name, desc, metricName,
                     metricsConfig.getReturnKeyMethod(className, ancestors, name, desc),
                     metricsConfig.getHelperClassName(className, ancestors, name, desc), true);
             }
