@@ -1,0 +1,9 @@
+documentation: Instruments the JCR API with a timer on every method.
+global:
+  reporters:
+    csv:
+      dir: metrics
+      period: 30
+packages:
+  javax.jcr: timer
+   
