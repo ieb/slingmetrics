@@ -439,17 +439,24 @@ public class DropwizardMetricsConfig {
         if (TRUE_OPTION.equals(getConfig(className,MONITOR_CLASS_OPT))) {
             logServiceHolder.info("Checking Method: ",className,".",name,desc);
         }
-        dumpConfig(className, name, desc);
+        dumpConfig(className, ancestors, name, desc);
         return TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
 
-    private void dumpConfig(@Nonnull String className, @Nonnull String name, @Nonnull String desc) {
+    private void dumpConfig(@Nonnull String className, @Nonnull String[] ancestors, @Nonnull String name, @Nonnull String desc) {
         if(dumpFile != null) {
             try {
                 if (!className.equals(lastClassname)) {
                    dumpFile.write(className);
                    dumpFile.write(":\n");
+                   dumpFile.write("  ancestors:\n");
+                   for (String a : ancestors) {
+                    dumpFile.write("    - ");
+                    dumpFile.write(a);
+                    dumpFile.write("\n");
+                   }
+
                    lastClassname = className;
                    lastName = "---";
                    lastDesc = "---";

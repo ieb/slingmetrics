@@ -107,7 +107,8 @@ public class MetricsWeavingHook implements WeavingHook {
                 String javaName = name.replace('/', '.');
                 if (!ancestors.contains(javaName)) {
                     ancestors.add(javaName);
-                    // Not certain if we need to load ancestors or not, assume we dont. loadAncestors(readClass(iface), ancestors);
+                    // Not certain if we need to load ancestors or not, assume we dont. 
+                    loadAncestors(readClass(name), ancestors);
                 }
             }
         }
