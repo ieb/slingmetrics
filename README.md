@@ -3,6 +3,7 @@ Metrics
 
 [![Build Status](https://travis-ci.org/ieb/slingmetrics.svg?branch=master)](https://travis-ci.org/ieb/slingmetrics)
 
+
 This bundle adds Dorpwizard Metrics. It does 2 things.
 
 1. Provides an API to interact with a Metrics integration (MetricsFactory, MetricsUtil)
@@ -32,6 +33,12 @@ Contributing
 
 If you find a bug or have an improvement please open an issue at this git repo.  If you have a patch please open a pull request. The repo is https://github.com/ieb/slingmetrics if your not already here.
 By Contributing anything you agree to the same CLA as used for all Apache projects. (this is not an official Apache project) 
+
+JDK versions
+------------
+This code has been tested with JDK7. Some inital testing has shown that he byte code patterns used with JDK8 and later are subtley different, hence certain types of 
+instrumentation my result in strance byte code format errors in later JDK versions. Fixing this is wip.
+
 
 Configuration
 -------------
