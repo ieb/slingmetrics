@@ -138,6 +138,23 @@ This method has a signature of
     
 Which can be discovered by looking at the byte code for the class, mentally converting the signature into a byte code description or using the \_monitor\_class option to log the methods.
 
+Per Package COnfiguration
+-------------------------
+
+Frequently instumentation is required for an entire package subtree. It is a pain to dump 1000s of classes and methods, work out which ones are specific to the API 
+represented by the package subtree and then instrument them on a per class basis. To address this a far simpler confiugration is available. 
+
+    documentation: Instruments the JCR API with a timer on every method.
+    global:
+      reporters:
+        csv:
+          dir: metrics
+          period: 30
+    packages:
+      javax.jcr: timer
+
+This will instument all methods in classes and interfaces under javax.jcr.* with a timer. In the case of an interface only the methods in the interface will be instumented, and not the implementation details. In the case of the class, all the methods will be instumented. 
+
 Instrumenting return values
 ---------------------------
 
