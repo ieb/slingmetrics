@@ -22,20 +22,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.sling.metrics.api.MetricsUtil;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.*;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.hooks.weaving.WeavingHook;
 import org.osgi.framework.hooks.weaving.WovenClass;
 import org.osgi.service.log.LogService;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class MetricsWeavingHook implements WeavingHook {
     private String addedImport;
@@ -58,7 +53,7 @@ public class MetricsWeavingHook implements WeavingHook {
 	public void weave(@Nonnull WovenClass wovenClass) {
 	    if ( foreignBundle(wovenClass) ) {
             ClassReader cr = new ClassReader(wovenClass.getBytes());
-            String[] ancestors = toStringArray(loadAncestors(cr, new HashSet<String>()));
+            Map<String, Set<String>> ancestors = loadAncestors(cr, new HashMap<String, Set<String>>());
             if ( activator.getMetricsConfig().addMetrics(wovenClass.getClassName(), ancestors) ) {
                 activator.log(LogService.LOG_DEBUG, "Adding Metrics to class " + wovenClass.getClassName());
                 try {
@@ -93,7 +88,7 @@ public class MetricsWeavingHook implements WeavingHook {
     }
 
     @Nonnull
-    private Set<String> loadAncestors(@Nullable ClassReader cr, @Nonnull Set<String> ancestors) {
+    private Map<String, Set<String>> loadAncestors(@Nullable ClassReader cr, @Nonnull Map<String, Set<String>> ancestors) {
         if ( cr != null) {
             addAll(ancestors, cr.getInterfaces());
             //addAll(ancestors, cr.getSuperName());
@@ -101,14 +96,26 @@ public class MetricsWeavingHook implements WeavingHook {
         return ancestors;
     }
 
-    private void addAll(Set<String> ancestors, String ... names) {
+    private void addAll(Map<String, Set<String>> ancestors, String ... names) {
         for (String name : names) {
             if (!"java/lang/Object".equals(name)) {
                 String javaName = name.replace('/', '.');
-                if (!ancestors.contains(javaName)) {
-                    ancestors.add(javaName);
-                    // Not certain if we need to load ancestors or not, assume we dont. 
-                    loadAncestors(readClass(name), ancestors);
+                if (!ancestors.containsKey(javaName)) {
+                    final Set<String> methods = new HashSet<String>();
+                    ClassReader cr = readClass(name);
+                    if ( cr != null ) {
+                        cr.accept(new ClassVisitor(Opcodes.ASM4) {
+                            @Override
+                            public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                                methods.add(name);
+                                methods.add(name + desc);
+                                return super.visitMethod(access, name, desc, signature, exceptions);
+                            }
+                        }, ClassReader.SKIP_FRAMES);
+                        // Not certain if we need to load ancestors or not, assume we dont.
+                        loadAncestors(cr, ancestors);
+                    }
+                    ancestors.put(javaName, methods);
                 }
             }
         }

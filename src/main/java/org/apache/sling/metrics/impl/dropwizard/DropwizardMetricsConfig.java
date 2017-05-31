@@ -23,12 +23,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -45,6 +41,7 @@ import org.apache.sling.metrics.impl.MetricsActivator;
 import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
+import org.objectweb.asm.ClassReader;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -179,19 +176,29 @@ public class DropwizardMetricsConfig {
         return patterns;
     }
 
-    private String getConfigWithAlternatives(String first, String[] alternatives, String ... path) {
-        String[] p = new String[path.length+1];
-        System.arraycopy(path,0,p,1,path.length);
+    private String getConfigWithAlternatives(String first, Map<String, Set<String>> alternatives, String methodName, String desc, String ... path) {
+        String[] p = new String[path.length+3];
+        if ( path.length > 0) {
+            System.arraycopy(path,0,p,3,path.length);
+        }
         p[0] = first;
+        p[1] = methodName;
+        p[2] = desc;
         String s = getConfig(p);
         if ( s != null) {
             return s;
         }
-        for ( String alt : alternatives ) {
-            p[0] = alt;
-            s = getConfig(p);
-            if ( s != null) {
-                return s;
+        // the alternatives are interface names, but we also need to check that the
+        // methods an desc are in the interface.
+        for ( Entry<String, Set<String>> alt : alternatives.entrySet() ) {
+            Set<String> methods = alt.getValue();
+            if ( methods.contains(methodName+desc) ) {
+                p[0] = alt.getKey();
+                s = getConfig(p);
+                logServiceHolder.debug("Found Method ",methodName+desc," in interface  ", alt.getKey(), " with methods ",methods," config object is ",s);
+                if (s != null) {
+                    return s;
+                }
             }
         }
         return null;
@@ -239,16 +246,16 @@ public class DropwizardMetricsConfig {
         return o;
     }
 
-    private String getMatchedClassName(@Nonnull String className, @Nonnull String[] alternatives) {
+    private String getMatchedClassName(@Nonnull String className, @Nonnull Map<String, Set<String>> alternatives) {
         if (configMap == null) {
             return className;
         }
         if ( configMap.containsKey(className)) {
             return className;
         }
-        for (String alternative: alternatives) {
-            if (configMap.containsKey(alternative)) {
-                return alternative;
+        for (Entry<String, Set<String>> alternative: alternatives.entrySet()) {
+            if (configMap.containsKey(alternative.getKey())) {
+                return alternative.getKey();
             }
         }
         Map<String, Object> classPatterns = (Map<String, Object>)configMap.get("packages");
@@ -258,10 +265,10 @@ public class DropwizardMetricsConfig {
                         return className;
                 }
             }
-            for (String alternative: alternatives) {
+            for (Entry<String, Set<String>> alternative: alternatives.entrySet()) {
                 for (Entry<String, Object> e: classPatterns.entrySet()) {
-                    if (alternative.startsWith(e.getKey())) {
-                            return alternative;
+                    if (alternative.getKey().startsWith(e.getKey())) {
+                            return alternative.getKey();
                     }
                 }
             }
@@ -435,25 +442,25 @@ public class DropwizardMetricsConfig {
             }
         }
     }
-    public boolean addMethodTimer(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+    public boolean addMethodTimer(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         if (TRUE_OPTION.equals(getConfig(className,MONITOR_CLASS_OPT))) {
             logServiceHolder.info("Checking Method: ",className,".",name,desc);
         }
         dumpConfig(className, ancestors, name, desc);
-        return TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || TIMER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
 
-    private void dumpConfig(@Nonnull String className, @Nonnull String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+    private void dumpConfig(@Nonnull String className, @Nonnull Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         if(dumpFile != null) {
             try {
                 if (!className.equals(lastClassname)) {
                    dumpFile.write(className);
                    dumpFile.write(":\n");
                    dumpFile.write("  ancestors:\n");
-                   for (String a : ancestors) {
+                    for (Entry<String, Set<String>> a: ancestors.entrySet()) {
                     dumpFile.write("    - ");
-                    dumpFile.write(a);
+                    dumpFile.write(a.getKey());
                     dumpFile.write("\n");
                    }
 
@@ -482,7 +489,7 @@ public class DropwizardMetricsConfig {
         }
     }
 
-    private boolean includeInDump(String className, String[] ancestors) {
+    private boolean includeInDump(String className, Map<String, Set<String>> ancestors) {
         boolean include = true;
         if (dumpFile == null) {
             return false;
@@ -493,8 +500,8 @@ public class DropwizardMetricsConfig {
                 include = true;
                 break;
             }
-            for ( String a : ancestors) {
-                if (p.matcher(a).matches()) {
+            for (Entry<String, Set<String>> a : ancestors.entrySet()) {
+                if (p.matcher(a.getKey()).matches()) {
                     include = true;
                     break;
                 }
@@ -513,41 +520,42 @@ public class DropwizardMetricsConfig {
         return include;
     }
 
-    public boolean addCount(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
-        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+    public boolean addCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
+        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
-    public boolean addMark(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
-        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name)) || METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+    public boolean addMark(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
+        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
-    
-    public boolean addReturnCount(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
-        return RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, TYPE)) || RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
+    // this method might not work with interfaces,
+    public boolean addReturnCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
+        return RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, "", TYPE)) || RETURNCOUNT_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
     }
-    public boolean addReturnMark(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
-        return RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, TYPE)) || RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
+    // this method might not work with interfaces,
+    public boolean addReturnMark(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
+        return RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, "", TYPE)) || RETURNMETER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc, TYPE));
     }
 
     @Nullable
-    public String getReturnKeyMethod(@Nonnull String className, String[] ancestors, @Nonnull String name, @Nonnull String desc) {
+    public String getReturnKeyMethod(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         String methodName = getConfigWithAlternatives(className, ancestors, name, desc, KEY_METHOD);
         if (methodName == null) {
-            methodName = getConfigWithAlternatives(className, ancestors, name, KEY_METHOD);
+            methodName = getConfigWithAlternatives(className, ancestors, name, "", KEY_METHOD);
         }
         return methodName;
     }
 
-    public String getHelperClassName(String className, String[] ancestors, String name, String desc) {
+    public String getHelperClassName(String className, Map<String, Set<String>> ancestors, String name, String desc) {
         String methodName = getConfigWithAlternatives(className, ancestors, name, desc, HELPER_CLASS);
         if (methodName == null) {
-            methodName = getConfigWithAlternatives(className, ancestors, name, HELPER_CLASS);
+            methodName = getConfigWithAlternatives(className, ancestors, name, "", HELPER_CLASS);
         }
         return methodName;
     }
 
     
     @Nonnull 
-    public String getMetricName(@Nonnull String className, @Nonnull String[] ancestors,  @Nonnull String name, @Nonnull String desc) {
+    public String getMetricName(@Nonnull String className, @Nonnull Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         String option = getConfig(className, name);
         String matchedClassName = getMatchedClassName(className, ancestors);
         if ( TIMER_OPTION.equals(option) || COUNTER_OPTION.equals(option) || METER_OPTION.equals(option)) {
@@ -559,7 +567,7 @@ public class DropwizardMetricsConfig {
     
 
 
-    public boolean addMetrics(@Nonnull String className, String[] ancestors) {
+    public boolean addMetrics(@Nonnull String className, Map<String, Set<String>> ancestors) {
         if (monitorClasses) {
             logServiceHolder.info("Loading Class: ",className);
         }
@@ -571,8 +579,8 @@ public class DropwizardMetricsConfig {
         if (configExists(className)) {
             return true;
         }
-        for(String a : ancestors) {
-            if (configExists(a)) {
+        for(Entry<String, Set<String>> a : ancestors.entrySet()) {
+            if (configExists(a.getKey())) {
                 return true;
             }
         }

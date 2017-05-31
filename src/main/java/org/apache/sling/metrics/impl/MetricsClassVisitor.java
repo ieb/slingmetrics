@@ -18,16 +18,14 @@
  */
 package org.apache.sling.metrics.impl;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import javax.annotation.Nonnull;
 
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.impl.dropwizard.DropwizardMetricsConfig;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -38,7 +36,7 @@ import org.objectweb.asm.Opcodes;
  */
 public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
 
-    private String[] ancestors;
+    private Map<String, Set<String>> ancestors;
     private DropwizardMetricsConfig metricsConfig;
 
     private boolean woven;
@@ -50,7 +48,7 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
     private List<String[]> methods = new ArrayList<String[]>();
 
     public MetricsClassVisitor(@Nonnull ClassVisitor cv, @Nonnull String className,
-                               @Nonnull String[] ancestors,
+                               @Nonnull Map<String, Set<String>> ancestors,
             @Nonnull DropwizardMetricsConfig metricsConfig,
             @Nonnull LogServiceHolder logServiceHolder) {
         super(Opcodes.ASM4, cv);
@@ -58,7 +56,7 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
         this.ancestors = ancestors;
         this.metricsConfig = metricsConfig;
         this.logServiceHolder = logServiceHolder;
-        logServiceHolder.debug("Visiting class ",className," ",Arrays.toString(ancestors));
+        logServiceHolder.debug("Visiting class ",className," ",String.valueOf(ancestors.keySet()));
     }
 
 
