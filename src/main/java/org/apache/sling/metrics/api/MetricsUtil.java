@@ -42,7 +42,7 @@ public class MetricsUtil {
             MetricsUtil.factory = factory;
         }
     }
-    
+
 
     /**
      * @param name name of the timer to start timing with, on return the timer will have started.
@@ -51,6 +51,44 @@ public class MetricsUtil {
     @Nonnull
     public static TimerContext getTimer(@Nonnull String name) {
         return factory.timerContext(name);
+    }
+
+    private static final ThreadLocal<Long> barrier = new ThreadLocal<Long>();
+
+    /**
+     * Increment a named counter by 1.
+     * Once this method is called on a thread, all other calls to this method
+     * are ignored until the corresponding call to {@link #endAPICount(String)}
+     * is made. This method and {@link #endAPICount(String)} have always to be
+     * called as a pair.
+     * @param name name of the counter
+     */
+    @Nonnull
+    public static void startAPICount(@Nonnull String name) {
+        final long val;
+        if ( barrier.get() == null ) {
+            factory.counter(name).inc();
+            val = 1;
+        } else {
+            val = barrier.get() + 1;
+        }
+        barrier.set(val);
+    }
+
+    /**
+     * Mark the end of an API Counter
+     * @param name name of the counter
+     */
+    @Nonnull
+    public static void endAPICount(@Nonnull String name) {
+        if ( barrier.get() != null ) {
+            final long val = barrier.get() - 1;
+            if ( val == 0 ) {
+                barrier.remove();
+            } else {
+                barrier.set(val);
+            }
+        }
     }
 
     /**

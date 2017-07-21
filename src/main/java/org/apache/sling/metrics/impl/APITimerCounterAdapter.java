@@ -27,23 +27,28 @@ import org.objectweb.asm.commons.AdviceAdapter;
 /**
  * Adapts method calls wrapping the byte code of the method with calls to a meter.
  */
-public class VoidAdapter extends AdviceAdapter {
+public class APITimerCounterAdapter extends AdviceAdapter {
+
 
     private static final String METRICS_UTIL_CL = MetricsUtil.class.getName().replace('.', '/');
     private static final String METRICS_UTIL_DESC = "(Ljava/lang/String;)V";
     private String timerName;
-    private String method;
 
-    public VoidAdapter(@Nonnull MethodVisitor mv, int access, @Nonnull String name, @Nonnull String descriptor, @Nonnull String timerName, @Nonnull String method) {
+    public APITimerCounterAdapter(@Nonnull MethodVisitor mv, int access, @Nonnull String name, @Nonnull String descriptor, @Nonnull String timerName) {
         super(Opcodes.ASM4, mv, access, name, descriptor);
         this.timerName = timerName;
-        this.method = method;
     }
 
     @Override
     protected void onMethodEnter() {
         mv.visitLdcInsn(timerName);
-        mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, method, METRICS_UTIL_DESC, false);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, "startAPICount", METRICS_UTIL_DESC, false);
+    }
+
+    @Override
+    protected void onMethodExit(int opcode) {
+        mv.visitLdcInsn(timerName);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, "endAPICount", METRICS_UTIL_DESC, false);
     }
 
 }

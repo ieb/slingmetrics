@@ -18,13 +18,15 @@
  */
 package org.apache.sling.metrics.impl;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.impl.dropwizard.DropwizardMetricsConfig;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -82,6 +84,12 @@ public class MetricsClassVisitor extends ClassVisitor implements Opcodes {
                 MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
                 woven = true;
                 return new VoidAdapter(mv, access, name, desc, metricName, "count");
+            } else if (metricsConfig.addAPITimerCount(className, ancestors, name, desc)) {
+                String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
+                logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
+                MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
+                woven = true;
+                return new APITimerCounterAdapter(mv, access, name, desc, metricName);
             } else if (metricsConfig.addMark(className, ancestors, name, desc)) {
                 String metricName = metricsConfig.getMetricName(className, ancestors, name, desc);
                 logServiceHolder.info("Adding Metrics ", metricName, "to method ", className, " ", name);
