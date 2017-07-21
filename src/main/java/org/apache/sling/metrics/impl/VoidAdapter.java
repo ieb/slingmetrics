@@ -30,7 +30,7 @@ import org.objectweb.asm.commons.AdviceAdapter;
 public class VoidAdapter extends AdviceAdapter {
 
     private static final String METRICS_UTIL_CL = MetricsUtil.class.getName().replace('.', '/');
-    private static final String METRICS_UTIL_DESC = "(Ljava/lang/String;)V;";
+    private static final String METRICS_UTIL_DESC = "(Ljava/lang/String;)V";
     private String timerName;
     private String method;
 
@@ -39,11 +39,11 @@ public class VoidAdapter extends AdviceAdapter {
         this.timerName = timerName;
         this.method = method;
     }
-    
+
     @Override
     protected void onMethodEnter() {
         mv.visitLdcInsn(timerName);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, METRICS_UTIL_CL, method, METRICS_UTIL_DESC, false);
     }
-    
+
 }

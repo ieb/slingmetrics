@@ -31,7 +31,7 @@ public class APITimerCounterAdapter extends AdviceAdapter {
 
 
     private static final String METRICS_UTIL_CL = MetricsUtil.class.getName().replace('.', '/');
-    private static final String METRICS_UTIL_DESC = "(Ljava/lang/String;)V;";
+    private static final String METRICS_UTIL_DESC = "(Ljava/lang/String;)V";
     private String timerName;
 
     public APITimerCounterAdapter(@Nonnull MethodVisitor mv, int access, @Nonnull String name, @Nonnull String descriptor, @Nonnull String timerName) {
