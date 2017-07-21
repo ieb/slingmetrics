@@ -23,26 +23,30 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Slf4jReporter;
 import org.apache.sling.metrics.api.LogServiceHolder;
 import org.apache.sling.metrics.api.MetricsUtil;
 import org.apache.sling.metrics.impl.MetricsActivator;
 import org.apache.sling.metrics.impl.dropwizard.ElasticSearchReporter.Builder;
-
-import com.esotericsoftware.yamlbeans.YamlReader;
-import org.objectweb.asm.ClassReader;
 import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Slf4jReporter;
+import com.esotericsoftware.yamlbeans.YamlReader;
 
 /**
  * Configure dropwizards instrumentation from a yaml file.
@@ -61,7 +65,7 @@ import org.slf4j.LoggerFactory;
  *      graphite: true
  *      console:
  *        period: 30
- * 
+ *
  * # class configuration, _monitor_class will monitor the class
  * # a method name with a recognized metric option will cause all methods of that name to be instrumented.
  * # a method name as a map will instrument individual method signatures as instructed.
@@ -70,7 +74,7 @@ import org.slf4j.LoggerFactory;
  *   getConfig: timer
  *   load:
  *     (Ljava/lang/String;)V : timer
- *   
+ *
  * </pre>
  */
 public class DropwizardMetricsConfig {
@@ -111,11 +115,12 @@ public class DropwizardMetricsConfig {
     private static final String TRUE_OPTION = "true";
     private static final String METER_OPTION = "meter";
     private static final String COUNTER_OPTION = "counter";
+    private static final String API_COUNTER_OPTION = "apicounter";
     private static final String TIMER_OPTION = "timer";
     private static final String RETURNCOUNT_OPTION = "count_return";
     private static final String RETURNMETER_OPTION = "meter_return";
-    private static final String VALID_OPTIONS = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION;
-    private static final String VALID_TYPES = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION+","+RETURNCOUNT_OPTION+","+RETURNMETER_OPTION;
+    private static final String VALID_OPTIONS = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION+","+API_COUNTER_OPTION;
+//    private static final String VALID_TYPES = METER_OPTION+","+COUNTER_OPTION+","+API_COUNTER_OPTION+","+TIMER_OPTION+","+RETURNCOUNT_OPTION+","+RETURNMETER_OPTION;
     private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
@@ -131,33 +136,33 @@ public class DropwizardMetricsConfig {
     private List<Pattern> dumpExcludes = new ArrayList<Pattern>();
 
     public DropwizardMetricsConfig(@Nonnull MetricsActivator activator) {
-        this.logServiceHolder = (LogServiceHolder)activator;
+        this.logServiceHolder = activator;
         this.activator = activator;
         String metricsConfigProperties = System.getProperty(METRICS_CONFIG_PROP, METRICS_CONFIG_FILENAME);
         load(metricsConfigProperties);
         monitorClasses = TRUE_OPTION.equals(getConfig(GLOBAL_CONFIG,MONITOR_OPT));
         configureDump();
-               
+
         metricsFactory = new DropwizardMetricsFactory(metricsRegistry);
         MetricsUtil.setFactory(metricsFactory);
-        
+
         createConsoleReporter();
         createJMXReporter();
         createOtherReporters();
 
-        
+
     }
-    
+
     private void configureDump() {
         if (configExists(GLOBAL_CONFIG,DUMP_CONFIG)) {
             try {
                 logServiceHolder.info(" Dumping Classes to ",getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
                 dumpFile = new FileWriter(getConfig(GLOBAL_CONFIG, DUMP_CONFIG, DUMPFILE_OPT));
                 dumpIncludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_INCLUDE));
-                dumpExcludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_EXCLUDE));                
+                dumpExcludes = getPatterns(getConfigObject(GLOBAL_CONFIG, DUMP_CONFIG, DUMP_EXCLUDE));
             } catch (IOException e) {
                 logServiceHolder.info("Cant open dumpfile ",getConfig(GLOBAL_CONFIG,DUMP_CONFIG,  DUMPFILE_OPT));
-            }            
+            }
         } else {
             logServiceHolder.info("Not Dumping Classes");
 
@@ -212,9 +217,9 @@ public class DropwizardMetricsConfig {
         }
         return null;
     }
-    
-    
-    
+
+
+
     @SuppressWarnings("unchecked")
     @Nullable
     private Object getConfigObject(@Nonnull String ... path) {
@@ -239,7 +244,7 @@ public class DropwizardMetricsConfig {
                     if (path[0].startsWith(e.getKey())) {
                         return e.getValue();
                     }
-                }            
+                }
             }
 
         }
@@ -275,7 +280,7 @@ public class DropwizardMetricsConfig {
         }
         return className;
     }
-    
+
     @Nullable
     private boolean configExists(@Nonnull String ... path) {
         return getConfigObject(path) != null;
@@ -401,17 +406,17 @@ public class DropwizardMetricsConfig {
         }
     }
 
-    @Nonnull 
+    @Nonnull
     public DropwizardMetricsFactory getMetricsFactory() {
         return metricsFactory;
     }
-    
+
     @Nonnull
     public MetricRegistry getRegistry() {
         return metricsRegistry;
     }
 
-    
+
     @SuppressWarnings("unchecked")
     private void load(@Nonnull String metricsConfigYaml) {
         try {
@@ -433,7 +438,7 @@ public class DropwizardMetricsConfig {
                 logServiceHolder.debug(e);
             }
         }
-            
+
         for (Closeable c : reporters) {
             try {
                 c.close();
@@ -472,7 +477,7 @@ public class DropwizardMetricsConfig {
                     dumpFile.write("  ");
                     dumpFile.write(name);
                     dumpFile.write(":\n");
-                    lastName = name;            
+                    lastName = name;
                     lastDesc = "---";
                 }
                 if (!desc.equals(lastDesc)) {
@@ -482,7 +487,7 @@ public class DropwizardMetricsConfig {
                     dumpFile.write(TIMER_OPTION);
                     dumpFile.write("\n");
                     lastDesc = desc;
-                }     
+                }
             } catch (IOException e) {
                 logServiceHolder.warn("Unable to dump class config",e);
             }
@@ -515,13 +520,17 @@ public class DropwizardMetricsConfig {
                 include = false;
                 break;
             }
-            
+
         }
         return include;
     }
 
     public boolean addCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+    }
+
+    public boolean addAPITimerCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
+        return API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
     public boolean addMark(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
@@ -553,18 +562,18 @@ public class DropwizardMetricsConfig {
         return methodName;
     }
 
-    
-    @Nonnull 
+
+    @Nonnull
     public String getMetricName(@Nonnull String className, @Nonnull Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
         String option = getConfig(className, name);
         String matchedClassName = getMatchedClassName(className, ancestors);
-        if ( TIMER_OPTION.equals(option) || COUNTER_OPTION.equals(option) || METER_OPTION.equals(option)) {
-            return DropwizardMetricsFactory.name(matchedClassName, name);            
+        if ( TIMER_OPTION.equals(option) || COUNTER_OPTION.equals(option) || METER_OPTION.equals(option) || API_COUNTER_OPTION.equals(option)) {
+            return DropwizardMetricsFactory.name(matchedClassName, name);
         } else {
             return DropwizardMetricsFactory.name(matchedClassName, name+desc);
         }
     }
-    
+
 
 
     public boolean addMetrics(@Nonnull String className, Map<String, Set<String>> ancestors) {
