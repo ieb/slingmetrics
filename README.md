@@ -145,7 +145,7 @@ This method has a signature of
     
 Which can be discovered by looking at the byte code for the class, mentally converting the signature into a byte code description or using the \_monitor\_class option to log the methods.
 
-Per Package COnfiguration
+Per Package Configuration
 -------------------------
 
 Frequently instumentation is required for an entire package subtree. It is a pain to dump 1000s of classes and methods, work out which ones are specific to the API 
@@ -160,7 +160,12 @@ represented by the package subtree and then instrument them on a per class basis
     packages:
       javax.jcr: timer
 
-This will instument all methods in classes and interfaces under javax.jcr.* with a timer. In the case of an interface only the methods in the interface will be instumented, and not the implementation details. In the case of the class, all the methods will be instumented. 
+This will instument all methods in classes and interfaces under javax.jcr.* with a timer, including sub packages. If you don't want to include sub packages, but a dot at the end of the package name:
+
+    packages:
+      javax.jcr.: timer
+
+In the case of an interface only the methods in the interface will be instumented, and not the implementation details. In the case of the class, all the methods will be instumented. 
 
 Instrumenting return values
 ---------------------------
@@ -227,6 +232,12 @@ A counter is the simplest, measuring only the number of calls.
     org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
              count = 1
     
+An apicounter is like a counter however it differs a little bit: if a method is called which is instrumented with the apicounter from now on now other api calls are counted until this method is left. This avoids counting calls to an API from within the API implementation itself. In addition, the name of the counter is the full name of the called method followed by the stacktrace element of the caller of the method.
+
+        
+
+    org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl.getResourceResolver
+             count = 1
     
 
 Activating a configuration

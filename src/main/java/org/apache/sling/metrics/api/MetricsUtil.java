@@ -67,25 +67,8 @@ public class MetricsUtil {
     public static void startAPICount(@Nonnull String name) {
         final long val;
         if ( barrier.get() == null ) {
-            boolean ignore = false;
             final StackTraceElement[] st = new Exception().getStackTrace();
-            // st[0] is this method
-            // st[1] is the API method calling this
-            // st[2] is the caller of the API method
-            if ( st.length > 2 && name.startsWith("javax.jcr.") ) {
-                if ( st[2].getClassName().startsWith("org.apache.sling.jcr.resource.internal.") ) {
-                    ignore = true;
-                }
-            }
-            if ( !ignore ) {
-                factory.counter(name).inc();
-                if ( st.length > 2 ) {
-                    final LogServiceHolder h = logServiceHolder;
-                    if ( h != null ) {
-                        h.info("APIMetrics: ", " API ", name, " CALLER ", st[2]);
-                    }
-                }
-            }
+            factory.counter(name + "*" + st[2].toString()).inc();
             val = 1;
 
         } else {
