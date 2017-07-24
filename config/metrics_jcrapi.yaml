@@ -6,6 +6,7 @@ global:
       period: 30
 packages:
   javax.jcr: apicounter
+  org.apache.jackrabbit.api.: apicounter
   org.apache.sling.jcr.resource.: apicounter
   org.apache.sling.jcr.resource.api: apicounter
   org.apache.sling.jcr.api: apicounter
