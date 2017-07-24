@@ -242,7 +242,13 @@ public class DropwizardMetricsConfig {
             if (classPatterns != null) {
                 for (Entry<String, Object> e: classPatterns.entrySet()) {
                     if (path[0].startsWith(e.getKey())) {
-                        return e.getValue();
+                        if ( "apicounter".equals(e.getValue()) ) {
+                            if ( !path[0].contains(".impl.") && !path[0].contains(".internal.") ) {
+                                return e.getValue();
+                            }
+                        } else {
+                            return e.getValue();
+                        }
                     }
                 }
             }
@@ -526,15 +532,15 @@ public class DropwizardMetricsConfig {
     }
 
     public boolean addCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
     public boolean addAPITimerCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
     public boolean addMark(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
     // this method might not work with interfaces,
     public boolean addReturnCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
