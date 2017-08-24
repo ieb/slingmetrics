@@ -29,7 +29,7 @@ import aQute.bnd.annotation.ProviderType;
 public class MetricsUtil {
 
     private static MetricsFactory factory = MetricsFactory.DEFAULT;
-    private static LogServiceHolder logServiceHolder;
+    private static volatile LogServiceHolder logServiceHolder;
 
     /**
      * @param factory the current metrics factory in use. If set to null a
@@ -67,8 +67,10 @@ public class MetricsUtil {
     public static void startAPICount(@Nonnull String name) {
         final long val;
         if ( barrier.get() == null ) {
-            factory.counter(name).inc();
+            final StackTraceElement[] st = new Exception().getStackTrace();
+            factory.counter(name + "*" + st[2].toString()).inc();
             val = 1;
+
         } else {
             val = barrier.get() + 1;
         }

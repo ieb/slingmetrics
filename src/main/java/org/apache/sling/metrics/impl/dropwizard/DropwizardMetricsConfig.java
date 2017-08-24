@@ -121,6 +121,7 @@ public class DropwizardMetricsConfig {
     private static final String RETURNMETER_OPTION = "meter_return";
     private static final String VALID_OPTIONS = METER_OPTION+","+COUNTER_OPTION+","+TIMER_OPTION+","+API_COUNTER_OPTION;
 //    private static final String VALID_TYPES = METER_OPTION+","+COUNTER_OPTION+","+API_COUNTER_OPTION+","+TIMER_OPTION+","+RETURNCOUNT_OPTION+","+RETURNMETER_OPTION;
+    private static final String PACKAGES_CONFIG = "packages";
     private Map<String, Object> configMap;
     private DropwizardMetricsFactory metricsFactory;
     private Stack<Closeable> reporters = new Stack<Closeable>();
@@ -238,10 +239,28 @@ public class DropwizardMetricsConfig {
         }
         if ( o == null && path.length > 0) {
             // only consider the first path element.
-            Map<String, Object> classPatterns = (Map<String, Object>)configMap.get("packages");
+            final Map<String, Object> classPatterns = (Map<String, Object>)configMap.get(PACKAGES_CONFIG);
             if (classPatterns != null) {
-                for (Entry<String, Object> e: classPatterns.entrySet()) {
-                    if (path[0].startsWith(e.getKey())) {
+                final int lastDot = path[0].lastIndexOf('.');
+                final String testPck = lastDot == -1 ? "" : path[0].substring(0, lastDot);
+
+                for (final Entry<String, Object> e: classPatterns.entrySet()) {
+                    final String pck;
+                    final boolean exactPckMatch;
+                    if ( e.getKey().endsWith(".") ) {
+                        pck = e.getKey().substring(0, e.getKey().length() - 1);
+                        exactPckMatch = true;
+                    } else {
+                        pck = e.getKey();
+                        exactPckMatch = false;
+                    }
+                    final boolean matches;
+                    if ( exactPckMatch ) {
+                        matches = pck.equals(testPck);
+                    } else {
+                        matches = pck.equals(testPck) || testPck.startsWith(pck + ".");
+                    }
+                    if ( matches ) {
                         return e.getValue();
                     }
                 }
@@ -263,17 +282,18 @@ public class DropwizardMetricsConfig {
                 return alternative.getKey();
             }
         }
-        Map<String, Object> classPatterns = (Map<String, Object>)configMap.get("packages");
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> classPatterns = (Map<String, Object>)configMap.get(PACKAGES_CONFIG);
         if (classPatterns != null) {
-            for (Entry<String, Object> e: classPatterns.entrySet()) {
+            for (final Entry<String, Object> e: classPatterns.entrySet()) {
                 if (className.startsWith(e.getKey())) {
-                        return className;
+                    return className;
                 }
             }
-            for (Entry<String, Set<String>> alternative: alternatives.entrySet()) {
-                for (Entry<String, Object> e: classPatterns.entrySet()) {
+            for (final Entry<String, Set<String>> alternative: alternatives.entrySet()) {
+                for (final Entry<String, Object> e: classPatterns.entrySet()) {
                     if (alternative.getKey().startsWith(e.getKey())) {
-                            return alternative.getKey();
+                        return alternative.getKey();
                     }
                 }
             }
@@ -298,7 +318,7 @@ public class DropwizardMetricsConfig {
             File output = new File(outputdir);
             output.mkdirs();
             CsvReporter reporter = CsvReporter.forRegistry(metricsRegistry)
-                    .formatFor(Locale.US.US)
+                    .formatFor(Locale.US)
                             .convertRatesTo(TimeUnit.SECONDS)
                             .convertDurationsTo(TimeUnit.MILLISECONDS)
                             .build(output);
@@ -526,15 +546,15 @@ public class DropwizardMetricsConfig {
     }
 
     public boolean addCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
     public boolean addAPITimerCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return API_COUNTER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
 
     public boolean addMark(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {
-        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc)) || METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
+        return METER_OPTION.equals(getConfigWithAlternatives(className, ancestors, name, desc));
     }
     // this method might not work with interfaces,
     public boolean addReturnCount(@Nonnull String className, Map<String, Set<String>> ancestors, @Nonnull String name, @Nonnull String desc) {

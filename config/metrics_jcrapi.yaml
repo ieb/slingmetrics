@@ -1,0 +1,12 @@
+documentation: Instruments the JCR API / Sling JCR API with an apicounter
+global:
+  reporters:
+    csv:
+      dir: metrics
+      period: 30
+packages:
+  javax.jcr: apicounter
+  org.apache.jackrabbit.api.: apicounter
+  org.apache.sling.jcr.resource.: apicounter
+  org.apache.sling.jcr.resource.api: apicounter
+  org.apache.sling.jcr.api: apicounter
